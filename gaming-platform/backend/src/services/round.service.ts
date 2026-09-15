@@ -170,18 +170,21 @@ export async function settleRound(roundId: string): Promise<{ settled: number; t
         },
       });
 
-      // Create settlement record
-      await tx.gameSettlement.create({
-        data: {
-          id: uuidv4(),
-          roundId,
-          betId: bet.id,
-          playerId: bet.playerId,
-          payout,
-          status: 'COMPLETED',
-          settledAt: new Date(),
-        },
-      });
+      // Create settlement record only if it doesn't already exist (idempotency)
+      const existingSettlement = await tx.gameSettlement.findUnique({ where: { betId: bet.id } });
+      if (!existingSettlement) {
+        await tx.gameSettlement.create({
+          data: {
+            id: uuidv4(),
+            roundId,
+            betId: bet.id,
+            playerId: bet.playerId,
+            payout,
+            status: 'COMPLETED',
+            settledAt: new Date(),
+          },
+        });
+      }
     });
 
     // Credit winnings (idempotent)

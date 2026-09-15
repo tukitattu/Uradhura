@@ -42,7 +42,7 @@ export function useAuth() {
   const refreshBalance = useCallback(async () => {
     try {
       const me = await authApi.me();
-      setPlayer(me);
+      setPlayer(prev => prev ? { ...prev, balance: me.balance } : me);
       localStorage.setItem('player', JSON.stringify(me));
       return me.balance;
     } catch {

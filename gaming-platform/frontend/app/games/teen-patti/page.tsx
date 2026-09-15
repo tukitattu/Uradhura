@@ -29,9 +29,9 @@ function CardDisplay({ cards, revealed }: { cards: string[]; revealed: boolean }
             'w-10 h-14 rounded border-2 flex items-center justify-center text-xs font-black',
             revealed
               ? cn('bg-white border-gray-200', isRed(card) ? 'text-red-600' : 'text-gray-900')
-              : 'bg-blue-800 border-blue-600 text-blue-400'
+              : 'bg-blue-800 border-blue-600 text-blue-400',
+            revealed && `card-reveal-${i}`
           )}
-          style={{ animation: revealed ? `cardFlip 0.4s ease-out ${i * 0.1}s both` : undefined }}
         >
           {revealed ? (
             <div className="text-center leading-none">

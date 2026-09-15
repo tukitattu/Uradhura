@@ -1,5 +1,6 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { adminApi, type AdminPlayer } from '@/lib/api';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
@@ -8,7 +9,8 @@ import { Badge } from '@/components/ui/Badge';
 import { formatTokens } from '@/lib/utils';
 import { Search, User, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export default function PlayersPage() {
+function PlayersPageInner() {
+  const searchParams = useSearchParams();
   const [players, setPlayers] = useState<AdminPlayer[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -29,6 +31,18 @@ export default function PlayersPage() {
       setLoading(false);
     }
   }
+
+  // Read search param from URL on mount
+  useEffect(() => {
+    const q = searchParams.get('search');
+    if (q) {
+      setSearch(q);
+      fetchPlayers(1, q);
+    } else {
+      fetchPlayers();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => { fetchPlayers(); }, [page]);
 
@@ -189,5 +203,13 @@ export default function PlayersPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function PlayersPage() {
+  return (
+    <Suspense fallback={<div className="animate-pulse p-6 text-gray-400">Loading...</div>}>
+      <PlayersPageInner />
+    </Suspense>
   );
 }

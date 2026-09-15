@@ -7,7 +7,8 @@ import { gamesApi, type Game, type GameOption } from '@/lib/api';
 import GameLayout, { CountdownTimer, StatusBanner } from '@/components/games/GameLayout';
 import Button from '@/components/ui/Button';
 import { cn, formatTokens, randomInt } from '@/lib/utils';
-import { Zap } from 'lucide-react';
+import { Zap, History } from 'lucide-react';
+import BetHistory from '@/components/games/BetHistory';
 
 const REEL_SYMBOLS = ['🍒', '🍋', '🔔', '💎', '⭐', '🎰', '7️⃣', '🃏'];
 const BET_AMOUNTS = [1000, 5000, 10000, 50000];
@@ -63,6 +64,7 @@ export default function SlotPage() {
   const [spinning, setSpinning] = useState(false);
   const [betResult, setBetResult] = useState<{ won: boolean; payout?: number; multiplier?: number } | null>(null);
   const [autoPlay, setAutoPlay] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => { if (!loading && !player) router.push('/login'); }, [player, loading, router]);
   useEffect(() => { gamesApi.get('slot').then(setGame).catch(() => {}); }, []);
@@ -223,6 +225,17 @@ export default function SlotPage() {
 
           {myBetThisRound === round?.id && (
             <p className="text-xs text-center text-gray-400">✓ Bet placed for this round. Waiting for result...</p>
+          )}
+        </div>
+
+        <div className="w-full max-w-lg mx-auto">
+          <button onClick={() => setShowHistory(!showHistory)} className="w-full flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-2">
+            <History size={14} /> {showHistory ? 'Hide' : 'Show'} My History
+          </button>
+          {showHistory && (
+            <div className="bg-game-card border border-game-border rounded-xl p-4">
+              <BetHistory gameId={game.id} compact />
+            </div>
           )}
         </div>
       </div>

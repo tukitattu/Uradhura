@@ -31,6 +31,7 @@ export default function BettingWheel({
   const animRef = useRef<number>();
 
   const totalBets = totals.reduce((s, t) => s + t.totalAmount, 0);
+  const r = 42; // radius percent from center — reduced from 44 to prevent edge clipping
 
   useEffect(() => {
     if (spinning) {
@@ -60,9 +61,9 @@ export default function BettingWheel({
   const sliceAngle = 360 / options.length;
 
   return (
-    <div className="relative flex items-center justify-center select-none">
+    <div className="max-w-[340px] w-full mx-auto relative flex items-center justify-center select-none">
       {/* Outer ring - option buttons */}
-      <div className="relative w-[320px] h-[320px] md:w-[400px] md:h-[400px]">
+      <div className="relative w-full aspect-square max-w-[320px] md:max-w-[400px] overflow-visible">
         {/* Spin wheel visual */}
         <div
           className="absolute inset-4 rounded-full border-4 border-game-border"
@@ -88,7 +89,6 @@ export default function BettingWheel({
         {/* Option buttons arranged in circle */}
         {options.map((option, i) => {
           const angle = (i * sliceAngle - 90) * (Math.PI / 180);
-          const r = 44; // percent from center
           const x = 50 + r * Math.cos(angle);
           const y = 50 + r * Math.sin(angle);
           const total = totals.find((t) => t.optionId === option.id);
@@ -101,7 +101,7 @@ export default function BettingWheel({
               onClick={() => !disabled && onSelect(option.id)}
               disabled={disabled}
               className={cn(
-                'absolute -translate-x-1/2 -translate-y-1/2 z-20 rounded-lg border-2 transition-all text-center min-w-[56px]',
+                'absolute -translate-x-1/2 -translate-y-1/2 z-20 rounded-lg border-2 transition-all text-center min-w-[44px] sm:min-w-[56px]',
                 isSelected && 'scale-110 shadow-lg',
                 isWinner && 'scale-125 animate-bounce-in shadow-2xl',
                 disabled && !isWinner && 'opacity-70 cursor-not-allowed',

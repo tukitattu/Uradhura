@@ -54,8 +54,9 @@ export default function AdminDashboard() {
   const [adjustType, setAdjustType] = useState<'Add' | 'Remove'>('Add');
   const [customLossLimit, setCustomLossLimit] = useState('500');
   const [overrideLoading, setOverrideLoading] = useState(false);
-  const [pkgData, setPkgData] = useState({ name: 'Starter Pack', priceUsd: 4.99, baseTokens: 500, bonusTokens: 50, isSpecialOffer: true, isPopular: true, expiryDays: 30, isActive: true });
+  const [pkgData, setPkgData] = useState({ name: '', priceUsd: 4.99, baseTokens: 500, bonusTokens: 50, isSpecialOffer: false, isPopular: false, expiryDays: 30, isActive: true });
   const [pkgSaveLoading, setPkgSaveLoading] = useState(false);
+  const [savedPackages, setSavedPackages] = useState<import('@/lib/api').TokenPackage[]>([]);
   const [saveMsg, setSaveMsg] = useState('');
 
   useEffect(() => {
@@ -63,6 +64,7 @@ export default function AdminDashboard() {
     adminApi.getProfitRisk().then((c) => { if (c) setConfig(c); }).catch(() => {});
     // Auto-run simulation on load
     adminApi.simulate().then(setSimulation).catch(() => {});
+    adminApi.listTokenPackages().then(setSavedPackages).catch(() => {});
   }, []);
 
   async function handleSimulate() {
@@ -117,6 +119,10 @@ export default function AdminDashboard() {
     setPkgSaveLoading(true);
     try {
       await adminApi.saveTokenPackage(pkgData);
+      // Refresh packages list and reset form to blank new package
+      const updated = await adminApi.listTokenPackages().catch(() => savedPackages);
+      setSavedPackages(updated);
+      setPkgData({ name: '', priceUsd: 4.99, baseTokens: 500, bonusTokens: 50, isSpecialOffer: false, isPopular: false, expiryDays: 30, isActive: true });
       setSaveMsg('Package saved!');
       setTimeout(() => setSaveMsg(''), 2000);
     } finally {
@@ -129,12 +135,29 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <KpiCard title="Active Games" value={`${dashboard?.activeGames ?? 6}/${dashboard?.totalGames ?? 6}`} sub="● All Online" icon={Gamepad2} color="#0ea5e9" />
-        <KpiCard title="Live Rounds" value={String(dashboard?.liveRounds ?? '—')} sub={`+3 vs last hour`} icon={Activity} color="#3fb950" />
-        <KpiCard title="Total Bets (Today)" value={`$ ${formatTokens(dashboard?.todayBets.total ?? 12450)}`} sub={`+${dashboard?.todayBets.changeVsYesterday ?? 18}% vs yesterday`} icon={DollarSign} color="#e3b341" />
-        <KpiCard title="Net Profit (Today)" value={`$ ${formatTokens(dashboard?.netProfit.total ?? 2890)}`} sub={`+${dashboard?.netProfit.changeVsYesterday ?? 12}% vs yesterday`} icon={TrendingUp} color="#8b5cf6" />
-      </div>
+      {!dashboard ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardBody className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-game-border animate-pulse" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-game-border rounded animate-pulse w-2/3" />
+                  <div className="h-7 bg-game-border rounded animate-pulse w-full" />
+                  <div className="h-3 bg-game-border rounded animate-pulse w-1/2" />
+                </div>
+              </CardBody>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <KpiCard title="Active Games" value={`${dashboard.activeGames}/${dashboard.totalGames}`} sub="● All Online" icon={Gamepad2} color="#0ea5e9" />
+          <KpiCard title="Live Rounds" value={String(dashboard.liveRounds)} sub="Active rounds" icon={Activity} color="#3fb950" />
+          <KpiCard title="Total Bets (Today)" value={`$ ${formatTokens(dashboard.todayBets.total)}`} sub={`+${dashboard.todayBets.changeVsYesterday}% vs yesterday`} icon={DollarSign} color="#e3b341" />
+          <KpiCard title="Net Profit (Today)" value={`$ ${formatTokens(dashboard.netProfit.total)}`} sub={`+${dashboard.netProfit.changeVsYesterday}% vs yesterday`} icon={TrendingUp} color="#8b5cf6" />
+        </div>
+      )}
 
       {/* Save message */}
       {saveMsg && (
@@ -376,7 +399,7 @@ export default function AdminDashboard() {
             <div className="flex items-center gap-3">
               <div className="text-2xl">🪙</div>
               <div>
-                <h2 className="font-black text-white">Token Package Builder</h2>
+                <h2 className="font-black text-white">Token Package Builder {savedPackages.length > 0 && <span className="text-sm font-normal text-gray-400">({savedPackages.length} package{savedPackages.length !== 1 ? 's' : ''})</span>}</h2>
                 <p className="text-xs text-gray-400">Create and manage token packages</p>
               </div>
             </div>

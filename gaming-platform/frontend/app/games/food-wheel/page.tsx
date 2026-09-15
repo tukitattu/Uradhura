@@ -8,7 +8,8 @@ import GameLayout, { CountdownTimer, BetDenominations, StatusBanner } from '@/co
 import BettingWheel from '@/components/games/BettingWheel';
 import Button from '@/components/ui/Button';
 import { cn, formatTokens, formatMultiplier } from '@/lib/utils';
-import { Package, Trophy } from 'lucide-react';
+import { Package, Trophy, History } from 'lucide-react';
+import BetHistory from '@/components/games/BetHistory';
 
 const PACKAGES = [
   { id: 'pkg1', name: 'Starter Bundle', options: ['Noodles', 'Dumpling'], multiplier: 2.0, price: 2000 },
@@ -25,6 +26,7 @@ export default function FoodWheelPage() {
   const [myBetThisRound, setMyBetThisRound] = useState<string | null>(null);
   const [betResult, setBetResult] = useState<{ won: boolean; payout?: number } | null>(null);
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
   const [bigWinners, setBigWinners] = useState<Array<{ name: string; amount: number }>>([
     { name: 'Player***123', amount: 45000 },
     { name: 'Lucky***99', amount: 120000 },
@@ -161,6 +163,15 @@ export default function FoodWheelPage() {
               ))}
             </div>
           </div>
+
+          <button onClick={() => setShowHistory(!showHistory)} className="w-full flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">
+            <History size={14} /> {showHistory ? 'Hide' : 'Show'} My History
+          </button>
+          {showHistory && (
+            <div className="bg-game-card border border-game-border rounded-xl p-4">
+              <BetHistory gameId={game.id} compact />
+            </div>
+          )}
         </div>
       </div>
     </GameLayout>

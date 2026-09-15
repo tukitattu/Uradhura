@@ -132,6 +132,11 @@ export default function ProfitRiskPage() {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
+                {simulation.simulatedAt && (
+                  <p className="text-xs text-gray-500 text-right">
+                    Last simulation: {new Date(simulation.simulatedAt).toLocaleString()}
+                  </p>
+                )}
               </>
             ) : (
               <div className="text-center py-16 text-gray-400">

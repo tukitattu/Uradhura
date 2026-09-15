@@ -104,6 +104,17 @@ export const walletApi = {
   get: () => apiFetch<WalletAccount>('/games/player/wallet'),
 };
 
+// ─── Player ───────────────────────────────────────────────────────────────────
+
+export const playerApi = {
+  topUp: (packageId: string) =>
+    apiFetch<{ balance: number; tokensAdded: number }>('/games/player/topup', {
+      method: 'POST',
+      body: JSON.stringify({ packageId }),
+    }),
+  getPackages: () => apiFetch<TokenPackage[]>('/games/player/packages', { skipAuth: true }),
+};
+
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 export const adminApi = {

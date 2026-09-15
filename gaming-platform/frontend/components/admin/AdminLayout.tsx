@@ -104,6 +104,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchQuery.trim()) {
+                    router.push(`/admin/players?search=${encodeURIComponent(searchQuery)}`);
+                    setSearchQuery('');
+                  }
+                }}
                 placeholder="Search players, games, rounds..."
                 className="w-64 bg-game-bg border border-game-border rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-brand-500"
               />

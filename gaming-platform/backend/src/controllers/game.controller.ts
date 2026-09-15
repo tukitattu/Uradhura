@@ -57,17 +57,9 @@ export async function startRound(req: Request, res: Response): Promise<void> {
 export async function getActiveRound(req: Request, res: Response): Promise<void> {
   const { gameId } = req.params;
   const round = await getCurrentRound(gameId);
-
   if (!round) {
-    // Auto-create a round for convenience
-    try {
-      const newRound = await createRound(gameId, 30);
-      sendSuccess(res, newRound);
-      return;
-    } catch {
-      sendError(res, 'No active round and could not create one', 'NO_ACTIVE_ROUND', 404);
-      return;
-    }
+    sendError(res, 'No active round', 'NO_ACTIVE_ROUND', 404);
+    return;
   }
   sendSuccess(res, round);
 }
@@ -161,6 +153,45 @@ export async function getRoundOptionTotals(req: Request, res: Response): Promise
   const { roundId } = req.params;
   const totals = await getOptionTotals(roundId);
   sendSuccess(res, totals);
+}
+
+// ─── Public Token Packages ────────────────────────────────────────────────────
+
+export async function getPublicPackages(req: Request, res: Response): Promise<void> {
+  const packages = await prisma.tokenPackage.findMany({
+    where: { isActive: true },
+    orderBy: { sortOrder: 'asc' },
+  });
+  sendSuccess(res, packages);
+}
+
+export async function demoTopUp(req: Request, res: Response): Promise<void> {
+  const { packageId } = req.body;
+  const playerId = req.player!.playerId;
+
+  if (!packageId) {
+    sendError(res, 'packageId is required', 'VALIDATION_ERROR');
+    return;
+  }
+
+  const pkg = await prisma.tokenPackage.findUnique({ where: { id: packageId } });
+  if (!pkg || !pkg.isActive) {
+    sendError(res, 'Package not found', 'NOT_FOUND', 404);
+    return;
+  }
+
+  const totalTokens = pkg.baseTokens + pkg.bonusTokens;
+  const { creditWallet } = await import('../services/wallet.service');
+  await creditWallet(
+    playerId,
+    totalTokens,
+    `topup:${packageId}`,
+    `Demo top-up: ${pkg.name}`,
+    `topup-${playerId}-${Date.now()}`
+  );
+
+  const wallet = await prisma.walletAccount.findUnique({ where: { playerId } });
+  sendSuccess(res, { balance: wallet?.balance ?? 0, tokensAdded: totalTokens }, 'Top-up successful');
 }
 
 // ─── Wallet ───────────────────────────────────────────────────────────────────

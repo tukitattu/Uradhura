@@ -90,7 +90,13 @@ export function CountdownTimer({ seconds, status }: CountdownProps) {
         {status === 'BETTING_OPEN' ? 'Bet closes in' : status === 'BETTING_CLOSED' ? 'Processing...' : status === 'SETTLED' ? 'Settled' : 'Starting...'}
       </span>
       <span className={cn('text-3xl font-black tabular-nums', isUrgent ? 'text-game-red' : 'text-white')}>
-        {status === 'BETTING_OPEN' ? seconds : status === 'BETTING_CLOSED' ? '⏳' : status === 'SETTLED' ? '✓' : '...'}
+        {status === 'BETTING_OPEN'
+          ? seconds
+          : status === 'BETTING_CLOSED' || status === 'RESULT_PROCESSING'
+          ? '⏳'
+          : status === 'SETTLED'
+          ? '✓'
+          : '...'}
       </span>
     </div>
   );

@@ -17,6 +17,12 @@ export function useRound({ gameId, pollInterval = 3000 }: UseRoundOptions) {
   const [lastWinner, setLastWinner] = useState<string | null>(null);
   const pollRef = useRef<NodeJS.Timeout>();
   const countdownRef = useRef<NodeJS.Timeout>();
+  const roundIdRef = useRef<string | undefined>();
+
+  // Keep ref in sync with current round id
+  useEffect(() => {
+    roundIdRef.current = round?.id;
+  }, [round?.id]);
 
   const fetchRound = useCallback(async () => {
     try {
@@ -47,13 +53,14 @@ export function useRound({ gameId, pollInterval = 3000 }: UseRoundOptions) {
   }, []);
 
   useEffect(() => {
+    if (!gameId) return;
     fetchRound();
     pollRef.current = setInterval(() => {
       fetchRound();
-      if (round?.id) fetchTotals(round.id);
+      if (roundIdRef.current) fetchTotals(roundIdRef.current);
     }, pollInterval);
     return () => clearInterval(pollRef.current);
-  }, [fetchRound, fetchTotals, pollInterval, round?.id]);
+  }, [fetchRound, fetchTotals, pollInterval]);
 
   // Local countdown tick
   useEffect(() => {

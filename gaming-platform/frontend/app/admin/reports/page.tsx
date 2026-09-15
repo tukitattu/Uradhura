@@ -8,6 +8,28 @@ import { Badge } from '@/components/ui/Badge';
 import { formatTokens } from '@/lib/utils';
 import { FileText, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 
+function exportCSV(bets: Bet[]) {
+  const headers = ['ID', 'Player', 'Game', 'Option', 'Amount', 'Payout', 'Status', 'Date'];
+  const rows = bets.map(bet => [
+    bet.id,
+    (bet as unknown as { player?: { username: string } }).player?.username || '',
+    (bet as unknown as { round?: { game?: { name: string } } }).round?.game?.name || '',
+    bet.option?.label || '',
+    bet.amount,
+    bet.payout || '',
+    bet.status,
+    new Date(bet.createdAt).toISOString(),
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `bet-report-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function ReportsPage() {
   const [bets, setBets] = useState<Bet[]>([]);
   const [total, setTotal] = useState(0);
@@ -42,7 +64,7 @@ export default function ReportsPage() {
           <h1 className="text-2xl font-black text-white">Reports</h1>
           <p className="text-gray-400 text-sm">{total.toLocaleString()} total bets</p>
         </div>
-        <Button variant="secondary" size="sm"><Download size={14} /> Export CSV</Button>
+        <Button onClick={() => exportCSV(bets)} variant="secondary" size="sm"><Download size={14} /> Export CSV</Button>
       </div>
 
       {/* Filters */}

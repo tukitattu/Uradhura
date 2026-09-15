@@ -116,8 +116,9 @@ export default function ThreeCardPage() {
                     return (
                       <div key={ci} className={cn(
                         'w-8 h-11 rounded border flex items-center justify-center text-xs font-black',
-                        isBack ? 'bg-blue-800 border-blue-600 text-blue-400' : cn('bg-white border-gray-200', isRed ? 'text-red-600' : 'text-gray-900')
-                      )} style={{ animation: revealed && !isBack ? `cardFlip 0.4s ease-out ${ci * 0.1}s both` : undefined }}>
+                        isBack ? 'bg-blue-800 border-blue-600 text-blue-400' : cn('bg-white border-gray-200', isRed ? 'text-red-600' : 'text-gray-900'),
+                        revealed && !isBack && `card-reveal-${ci}`
+                      )}>
                         {isBack ? '🂠' : (
                           <span className="leading-none">{card.slice(0, -1)}{SUITS[card.slice(-1)]}</span>
                         )}
