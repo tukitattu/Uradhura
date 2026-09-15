@@ -26,11 +26,11 @@ export default function RegisterPage() {
     <div className="min-h-screen flex flex-col items-center justify-end sm:justify-center pb-8 sm:pb-0 px-4"
       style={{ background: 'radial-gradient(ellipse at 50% -10%, #6d00a0 0%, #3d0060 30%, #0a0010 70%)' }}>
       <div className="mb-8 text-center animate-fade-in">
-        <img src="/assets/logo/dearlive-logo.png" alt="DearLive" className="h-24 mx-auto drop-shadow-2xl animate-float" />
+        <img src="/assets/logo/ura-logo.jpg" alt="Ura" className="mx-auto h-24 w-24 rounded-full object-cover ring-4 ring-[#f6c453]/70 shadow-[0_0_35px_rgba(246,196,83,0.35)] animate-float" />
       </div>
       <div className="w-full max-w-sm slide-up">
         <div className="dl-card-glow rounded-2xl p-6">
-          <h2 className="text-xl font-black text-white text-center mb-6">Join DearLive 💎</h2>
+          <h2 className="text-xl font-black text-white text-center mb-6">Join Ura Live</h2>
           {error && (
             <div className="mb-4 px-4 py-3 rounded-xl bg-[rgba(255,61,87,0.12)] border border-[rgba(255,61,87,0.3)] text-[#ff3d57] text-sm text-center">{error}</div>
           )}

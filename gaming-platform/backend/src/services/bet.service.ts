@@ -44,12 +44,22 @@ export async function placeBet(input: PlaceBetInput): Promise<object> {
 
   // Validate option
   const option = await prisma.gameOption.findUnique({ where: { id: optionId } });
-  if (!option || option.gameId !== round.gameId) {
+  if (!option || option.gameId !== round.gameId || !option.isActive) {
     throw new BetError('Invalid betting option', 'INVALID_OPTION');
   }
 
   // Validate amount
-  if (amount <= 0) throw new BetError('Bet amount must be positive', 'INVALID_AMOUNT');
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new BetError('Bet amount must be a finite positive number', 'INVALID_AMOUNT');
+  }
+
+  const existingPlayerBet = await prisma.gameBet.findFirst({
+    where: { roundId, playerId },
+    select: { id: true },
+  });
+  if (existingPlayerBet) {
+    throw new BetError('Only one bet is allowed per round', 'DUPLICATE_ROUND_BET');
+  }
 
   // Check daily loss limit
   const config = round.game.configurations[0];

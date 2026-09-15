@@ -92,7 +92,7 @@ export default function TeenPattiPage() {
   if (!player || !game) return null;
 
   return (
-    <GameLayout title="Teen Patti" balance={balance} roundNumber={round?.roundNumber}>
+    <GameLayout title={game.branding?.displayName || 'Teen Patti'} branding={game.branding} balance={balance} roundNumber={round?.roundNumber}>
       <div className="flex flex-col items-center gap-4 p-4 max-w-2xl mx-auto w-full flex-1">
         {round && <StatusBanner status={round.status} winnerId={round.winnerId} winnerLabel={game.options.find(o=>o.id===round.winnerId)?.label}/>}
 

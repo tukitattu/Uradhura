@@ -202,6 +202,7 @@ async function main() {
     if (!existingPkg) {
       await prisma.tokenPackage.create({ data: { id: uuidv4(), ...pkg } });
     }
+  }
 
   // ─── Game Branding Defaults ──────────────────────────────────────────────
   const brandingDefaults = [
@@ -262,4 +263,3 @@ main()
     process.exit(1);
   })
   .finally(() => prisma.$disconnect());
-}

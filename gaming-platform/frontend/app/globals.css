@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── DearLive Design Tokens ──────────────────────────────────────────────── */
+/* ─── Uradhura Design Tokens ──────────────────────────────────────────────── */
 :root {
   --dl-bg:      #0a0010;
   --dl-surface: #12001e;
@@ -12,6 +12,11 @@
   --dl-gold:    #ffd700;
   --dl-purple:  #8b00ff;
   --dl-teal:    #00d4ff;
+  --dl-text:    #fff;
+  --dl-text-muted: rgba(255,255,255,0.58);
+  --dl-green:   #00e676;
+  --dl-red:     #ff3d57;
+  --dl-bg-gradient: radial-gradient(ellipse at 50% 0%, #3d0060 0%, #1a0028 40%, #0a0010 100%);
 }
 
 /* ─── Base ────────────────────────────────────────────────────────────────── */
@@ -20,11 +25,17 @@
 html { overflow-x: hidden; }
 
 body {
-  background-color: var(--dl-bg);
-  color: #fff;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--dl-bg-gradient), var(--dl-bg);
+  color: var(--dl-text);
+  font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+}
+
+button, a, input { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, input:focus-visible {
+  outline: 2px solid var(--dl-pink);
+  outline-offset: 3px;
 }
 
 /* ─── Scrollbar ───────────────────────────────────────────────────────────── */
@@ -330,7 +341,7 @@ body {
 
 /* ─── CSS Variable Overrides (from Design Token System) ──────────────────── */
 /* These vars are set at runtime by DesignTokenProvider from saved tokens.   */
-/* Default values match the DearLive theme and are overridden per-scope.     */
+/* Default values match the Uradhura theme and are overridden per-scope.     */
 :root {
   --dl-bg:           #0a0010;
   --dl-surface:      #12001e;

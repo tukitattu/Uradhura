@@ -18,7 +18,7 @@ export default function LoginPage() {
     setError(''); setLoading(true);
     try {
       const player = await login(email, password);
-      router.push(player.role === 'admin' || player.role === 'super_admin' ? '/admin' : '/games');
+      router.push(player.role === 'admin' || player.role === 'super_admin' ? '/admin' : '/home');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Login failed');
     } finally { setLoading(false); }
@@ -28,22 +28,22 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col items-center justify-end sm:justify-center pb-8 sm:pb-0 px-4"
       style={{
         background: 'radial-gradient(ellipse at 50% -10%, #6d00a0 0%, #3d0060 30%, #0a0010 70%)',
-        backgroundImage: 'radial-gradient(ellipse at 50% -10%, #6d00a0 0%, #3d0060 30%, #0a0010 70%), url(/assets/logo/dearlive-poster.png)',
-        backgroundSize: 'cover, cover',
-        backgroundPosition: 'center, center top',
+        backgroundImage: 'radial-gradient(ellipse at 50% -10%, #6d00a0 0%, #3d0060 30%, #0a0010 70%)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
         backgroundBlendMode: 'normal',
       }}>
 
       {/* Logo */}
       <div className="mb-8 sm:mb-10 text-center animate-fade-in">
-        <img src="/assets/logo/dearlive-logo.png" alt="DearLive" className="h-28 sm:h-36 mx-auto drop-shadow-2xl animate-float" />
-        <p className="text-[rgba(255,255,255,0.5)] text-sm mt-2 tracking-widest uppercase font-semibold">Where Love Lives</p>
+        <img src="/assets/logo/ura-logo.jpg" alt="Ura" className="mx-auto h-28 w-28 rounded-full object-cover ring-4 ring-[#f6c453]/70 shadow-[0_0_35px_rgba(246,196,83,0.35)] animate-float" />
+        <p className="text-[#f6c453] text-sm mt-3 tracking-[0.35em] uppercase font-black">Ura Live</p>
       </div>
 
       {/* Card */}
       <div className="w-full max-w-sm slide-up">
         <div className="dl-card-glow rounded-2xl p-6 backdrop-blur-xl">
-          <h2 className="text-xl font-black text-white text-center mb-6">Welcome Back 💜</h2>
+          <h2 className="text-xl font-black text-white text-center mb-6">Welcome back to Ura</h2>
 
           {error && (
             <div className="mb-4 px-4 py-3 rounded-xl bg-[rgba(255,61,87,0.12)] border border-[rgba(255,61,87,0.3)] text-[#ff3d57] text-sm font-medium text-center">
@@ -53,15 +53,15 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-[rgba(255,255,255,0.5)] mb-1.5 uppercase tracking-wide">Email</label>
+              <label htmlFor="login-email" className="block text-xs font-bold text-[rgba(255,255,255,0.5)] mb-1.5 uppercase tracking-wide">Email</label>
               <input value={email} onChange={e => setEmail(e.target.value)}
-                type="email" placeholder="you@example.com" required
+                id="login-email" type="email" placeholder="you@example.com" required
                 className="dl-input" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-[rgba(255,255,255,0.5)] mb-1.5 uppercase tracking-wide">Password</label>
+              <label htmlFor="login-password" className="block text-xs font-bold text-[rgba(255,255,255,0.5)] mb-1.5 uppercase tracking-wide">Password</label>
               <input value={password} onChange={e => setPassword(e.target.value)}
-                type="password" placeholder="••••••••" required
+                id="login-password" type="password" placeholder="••••••••" required
                 className="dl-input" />
             </div>
 

@@ -10,13 +10,14 @@ interface GameLayoutProps {
   balance: number;
   roundNumber?: number;
   onBack?: () => void;
+  branding?: { logoUrl?: string; primaryColor?: string; accentColor?: string; bgGradient?: string } | null;
 }
 
-export default function GameLayout({ children, title, balance, roundNumber }: GameLayoutProps) {
+export default function GameLayout({ children, title, balance, roundNumber, branding }: GameLayoutProps) {
   const [muted, setMuted] = useState(false);
   return (
     <div className="min-h-screen flex flex-col" style={{
-      background: 'radial-gradient(ellipse at 50% 0%, #3d0060 0%, #1a0028 40%, #0a0010 100%)',
+      background: branding?.bgGradient || 'radial-gradient(ellipse at 50% 0%, #3d0060 0%, #1a0028 40%, #0a0010 100%)',
     }}>
       {/* Top bar */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-[rgba(61,17,85,0.6)] bg-[rgba(10,0,16,0.7)] backdrop-blur-md z-20 sticky top-0">
@@ -26,8 +27,9 @@ export default function GameLayout({ children, title, balance, roundNumber }: Ga
             aria-label="Back">
             <ArrowLeft size={18} />
           </Link>
-          <div>
-            <h1 className="font-black text-base text-white leading-tight">{title}</h1>
+          <div className="flex items-center gap-2">
+            <img src={branding?.logoUrl || '/assets/logo/ura-logo.jpg'} alt="Ura" className="h-8 w-8 rounded-full object-cover ring-1 ring-[#f6c453]/70" />
+            <h1 className="font-black text-base text-white leading-tight" style={{ color: branding?.primaryColor || undefined }}>{title}</h1>
             {roundNumber && <p className="text-xs text-[rgba(255,255,255,0.4)]">Round #{roundNumber}</p>}
           </div>
         </div>

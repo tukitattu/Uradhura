@@ -230,6 +230,16 @@ export interface Game {
   sortOrder: number;
   options: GameOption[];
   configurations: GameConfiguration[];
+  branding?: GameBranding | null;
+  activeRound?: ActiveRoundSummary | null;
+}
+
+export interface ActiveRoundSummary {
+  id: string;
+  roundNumber: number;
+  status: string;
+  bettingEndsAt?: string | null;
+  totalBetAmount: number;
 }
 
 export interface GameOption {

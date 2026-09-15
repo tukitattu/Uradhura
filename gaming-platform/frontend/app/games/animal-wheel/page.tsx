@@ -60,7 +60,7 @@ export default function AnimalWheelPage() {
   if (!player || !game) return null;
 
   return (
-    <GameLayout title="Animal Wheel" balance={balance} roundNumber={round?.roundNumber}>
+    <GameLayout title={game.branding?.displayName || 'Animal Wheel'} branding={game.branding} balance={balance} roundNumber={round?.roundNumber}>
       <div className="flex flex-col lg:flex-row gap-4 p-4 flex-1">
         <div className="flex-1 flex flex-col items-center gap-4 min-w-0">
           {round && <StatusBanner status={round.status} winnerId={round.winnerId} winnerLabel={game.options.find(o=>o.id===round.winnerId)?.label}/>}

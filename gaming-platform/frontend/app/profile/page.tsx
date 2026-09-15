@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { ArrowLeft, Trophy, TrendingUp, TrendingDown, Coins } from 'lucide-react';
+import SocialShell from '@/components/social/SocialShell';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -103,22 +104,21 @@ export default function ProfilePage() {
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen" style={{ background: 'radial-gradient(ellipse at top, #1a1f2e 0%, #0d1117 70%)' }}>
-      {/* Header bar */}
-      <header className="border-b border-[rgba(61,17,85,0.6)] bg-[#1a0028]/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Link
-            href="/games"
-            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors"
-          >
-            <ArrowLeft size={16} /> Back to Games
-          </Link>
-          <span className="text-gray-600">|</span>
-          <span className="text-sm font-semibold text-white">My Profile</span>
+    <SocialShell>
+      <main className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div><p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ff75b8]">Your space</p><h1 className="text-3xl font-black">Profile</h1></div>
+          <Link href="/games" className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-xs font-bold text-white/70 hover:bg-white/15"><ArrowLeft size={14} /> Games</Link>
         </div>
-      </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            ['level_icon.svg', 'Level', 'Newcomer'],
+            ['live_center_icon.svg', 'Live center', 'Go live'],
+            ['my_agency_icon.svg', 'My agency', 'Discover'],
+            ['store_icon.svg', 'Store', 'Browse items'],
+          ].map(([icon, label, value]) => <Link href="#" key={label} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 transition hover:border-[#ff4fa8]/50 hover:bg-white/[0.08]"><img src={`/assets/icons/profile/${icon}`} alt="" className="mb-4 h-8 w-8" /><p className="text-sm font-bold">{label}</p><p className="mt-1 text-xs text-white/45">{value}</p></Link>)}
+        </section>
         {/* ─── Profile hero ───────────────────────────────────────────────── */}
         <Card variant="glow">
           <CardBody className="flex flex-col sm:flex-row items-center sm:items-start gap-5 p-6">
@@ -343,6 +343,6 @@ export default function ProfilePage() {
           )}
         </Card>
       </main>
-    </div>
+    </SocialShell>
   );
 }

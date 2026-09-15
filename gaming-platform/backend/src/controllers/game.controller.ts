@@ -14,31 +14,53 @@ import { placeBet, getPlayerBetHistory, getOptionTotals } from '../services/bet.
 // ─── Games ────────────────────────────────────────────────────────────────────
 
 export async function listGames(req: Request, res: Response): Promise<void> {
-  const games = await prisma.game.findMany({
+  const [games, brandings] = await Promise.all([
+    prisma.game.findMany({
     where: { isActive: true },
     orderBy: { sortOrder: 'asc' },
     include: {
       options: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
       configurations: { where: { isActive: true }, take: 1 },
+      rounds: {
+        where: { status: { in: ['UPCOMING', 'BETTING_OPEN', 'BETTING_CLOSED', 'RESULT_PROCESSING'] } },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: {
+          id: true,
+          roundNumber: true,
+          status: true,
+          bettingEndsAt: true,
+          totalBetAmount: true,
+        },
+      },
     },
-  });
-  sendSuccess(res, games);
+    }),
+    prisma.gameBranding.findMany(),
+  ]);
+  sendSuccess(res, games.map(game => ({
+    ...game,
+    activeRound: game.rounds[0] || null,
+    branding: brandings.find(branding => branding.gameSlug === game.slug) || null,
+  })));
 }
 
 export async function getGame(req: Request, res: Response): Promise<void> {
   const { slug } = req.params;
-  const game = await prisma.game.findUnique({
+  const [game, branding] = await Promise.all([
+    prisma.game.findUnique({
     where: { slug },
     include: {
       options: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
       configurations: { where: { isActive: true }, take: 1 },
     },
-  });
+    }),
+    prisma.gameBranding.findUnique({ where: { gameSlug: slug } }),
+  ]);
   if (!game) {
     sendError(res, 'Game not found', 'NOT_FOUND', 404);
     return;
   }
-  sendSuccess(res, game);
+  sendSuccess(res, { ...game, branding });
 }
 
 // ─── Rounds ───────────────────────────────────────────────────────────────────
@@ -133,6 +155,7 @@ export async function submitBet(req: Request, res: Response): Promise<void> {
       INSUFFICIENT_BALANCE: 402,
       BETTING_CLOSED: 409,
       BETTING_EXPIRED: 409,
+      DUPLICATE_ROUND_BET: 409,
       DAILY_LOSS_LIMIT: 422,
     };
     sendError(res, e.message, e.code || 'BET_ERROR', statusMap[e.code || ''] || 400);
@@ -197,9 +220,10 @@ export async function demoTopUp(req: Request, res: Response): Promise<void> {
 // ─── Public Design Tokens ─────────────────────────────────────────────────────
 
 export async function getPublicDesignTokens(req: Request, res: Response): Promise<void> {
-  // Public endpoint — no auth required. Returns only global tokens.
+  const requestedScope = typeof req.query.scope === 'string' ? req.query.scope : 'global';
+  const scope = requestedScope === 'global' ? 'global' : requestedScope;
   const tokens = await prisma.designToken.findMany({
-    where: { scope: 'global' },
+    where: { scope: { in: ['global', scope] } },
     orderBy: { key: 'asc' },
   });
   sendSuccess(res, tokens);

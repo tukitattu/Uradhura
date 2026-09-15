@@ -15,7 +15,9 @@ const PORT = process.env.PORT || 4000;
 // Security
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: process.env.NODE_ENV === 'development'
+    ? [/^http:\/\/localhost:\d+$/, /^http:\/\/127\.0\.0\.1:\d+$/]
+    : (process.env.CORS_ORIGIN || 'http://localhost:3000'),
   credentials: true,
 }));
 

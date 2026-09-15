@@ -2,7 +2,7 @@
 /**
  * DesignTokenProvider
  * Loads saved design tokens from the public backend endpoint and injects
- * them as CSS custom properties on :root, overriding the DearLive theme.
+ * them as CSS custom properties on :root, overriding the Uradhura theme.
  * Also reads page-scoped tokens if pageScope is provided.
  */
 import { useEffect } from 'react';
@@ -64,18 +64,16 @@ export default function DesignTokenProvider({
   pageScope?: string;
 }) {
   useEffect(() => {
-    // 1. Load public global tokens (no auth needed)
-    apiFetch<DesignToken[]>('/games/design-tokens', { skipAuth: true })
-      .then(globalTokens => {
-        // 2. If we have a scope, try to load scoped tokens (may fail if not auth'd — that's ok)
-        if (pageScope && pageScope !== 'global') {
-          apiFetch<DesignToken[]>(`/superadmin/design-tokens?scope=${pageScope}`)
-            .then(scopedTokens => applyTokens([...globalTokens, ...scopedTokens], pageScope))
-            .catch(() => applyTokens(globalTokens, 'global'));
-        } else {
-          applyTokens(globalTokens, 'global');
-        }
-      })
+    const path = window.location.pathname;
+    const routeScope = pageScope || (
+      path.startsWith('/games/') ? `game:${path.split('/')[2]}` :
+      path.startsWith('/games') ? 'page:games' :
+      path.startsWith('/admin') ? 'page:admin' :
+      path === '/profile' ? 'page:profile' :
+      ['/login', '/register'].includes(path) ? 'page:login' : 'global'
+    );
+    apiFetch<DesignToken[]>(`/games/design-tokens?scope=${encodeURIComponent(routeScope)}`, { skipAuth: true })
+      .then(tokens => applyTokens(tokens, routeScope))
       .catch(() => {
         // Backend unavailable — apply localStorage preview tokens only
         try {

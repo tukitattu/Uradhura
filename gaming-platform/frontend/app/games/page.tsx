@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { gamesApi, playerApi, betsApi, type Game, type TokenPackage } from '@/lib/api';
 import { formatTokens } from '@/lib/utils';
-import { LogOut, Settings, X, Coins, Sparkles, Crown } from 'lucide-react';
+import { LogOut, Settings, X, Coins, Sparkles, Crown, Home, History, MessageCircle, ArrowUpRight } from 'lucide-react';
 
 const GAME_META: Record<string, { emoji: string; bg: string; glow: string; tag: string }> = {
   greedy:        { emoji:'🐷', bg:'from-[#4a0020] to-[#1a0028]', glow:'rgba(255,31,166,0.3)',  tag:'Food Wheel' },
@@ -55,9 +55,15 @@ export default function GamesPage() {
 
   if (loading || !player) return null;
 
+  const liveGames = games.filter(game => game.activeRound?.status === 'BETTING_OPEN').length;
+
   return (
-    <div className="min-h-screen" style={{
-      background: 'radial-gradient(ellipse at 50% -5%, #3d0060 0%, #1a0028 35%, #0a0010 100%)',
+    <div className="min-h-screen pb-20" style={{
+      backgroundImage: 'linear-gradient(180deg, rgba(10,0,16,0.42), rgba(10,0,16,0.98) 52%), url(/assets/bg/home_bg.png)',
+      backgroundPosition: 'center top',
+      backgroundSize: '100% auto',
+      backgroundRepeat: 'no-repeat',
+      backgroundColor: '#0a0010',
     }}>
 
       {/* Top Up Modal */}
@@ -110,7 +116,7 @@ export default function GamesPage() {
       <header className="sticky top-0 z-10 border-b border-[rgba(61,17,85,0.6)] bg-[rgba(10,0,16,0.85)] backdrop-blur-md">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/assets/logo/dearlive-logo.png" alt="DearLive" className="h-10 drop-shadow-lg" />
+            <img src="/assets/logo/ura-logo.jpg" alt="Ura" className="h-9 w-9 rounded-full object-cover ring-2 ring-[#f6c453]/70" />
             <div className="hidden sm:block">
               <div className="text-xs text-[rgba(255,255,255,0.4)]">Welcome,</div>
               <div className="text-sm font-black text-white leading-tight">{player.username}</div>
@@ -141,13 +147,17 @@ export default function GamesPage() {
 
       <main className="max-w-5xl mx-auto px-4 py-6 pb-12">
         {/* Hero */}
-        <div className="text-center mb-8 pt-2">
+        <div className="mb-8 pt-8 sm:pt-14 max-w-2xl">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Sparkles size={18} className="text-[#ffd700]" />
-            <h2 className="text-3xl sm:text-4xl font-black text-gradient-gold">Choose Your Game</h2>
+            <h2 className="text-3xl sm:text-5xl font-black text-gradient-gold">Play the moment</h2>
             <Sparkles size={18} className="text-[#ffd700]" />
           </div>
-          <p className="text-[rgba(255,255,255,0.4)] text-sm">6 live games · Real-time betting · Instant payouts</p>
+          <p className="text-[rgba(255,255,255,0.65)] text-sm sm:text-base">Pick a room, join the live round, and make your call.</p>
+          <div className="mt-5 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#00e676]">
+            <span className="h-2 w-2 rounded-full bg-[#00e676] shadow-[0_0_14px_#00e676]" />
+            {liveGames || games.length} rooms live now
+          </div>
         </div>
 
         {/* Games grid */}
@@ -159,27 +169,42 @@ export default function GamesPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {games.map(game => {
               const m = GAME_META[game.slug] || { emoji:'🎲', bg:'from-[#1a0028] to-[#0a0010]', glow:'rgba(255,31,166,0.2)', tag:'Game' };
+              const branding = game.branding;
+              const cardBackground = branding?.bgGradient || undefined;
               return (
                 <Link key={game.id} href={`/games/${game.slug}`}
                   className="group relative rounded-2xl overflow-hidden border border-[rgba(61,17,85,0.6)] hover:border-[rgba(255,31,166,0.4)] transition-all active:scale-95"
-                  style={{ boxShadow: `0 4px 20px ${m.glow}` }}>
-                  <div className={`bg-gradient-to-b ${m.bg} p-5 h-full min-h-[160px] flex flex-col justify-between`}>
+                  style={{ boxShadow: `0 4px 20px ${branding?.primaryColor || m.glow}` }}>
+                  <div className={`bg-gradient-to-b ${m.bg} p-5 h-full min-h-[180px] flex flex-col justify-between`} style={cardBackground ? { background: cardBackground } : undefined}>
                     {/* Glow bg */}
                     <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
                       style={{ background: `radial-gradient(circle at 50% 50%, ${m.glow}, transparent 70%)` }} />
                     <div className="relative">
-                      <div className="text-5xl mb-2 group-hover:scale-110 transition-transform drop-shadow-lg">{m.emoji}</div>
-                      <div className="text-base font-black text-white leading-tight">{game.name}</div>
-                      <div className="text-[10px] text-[rgba(255,255,255,0.4)] mt-0.5 font-semibold uppercase tracking-wide">{m.tag}</div>
+                      <div className="text-5xl mb-2 group-hover:scale-110 transition-transform drop-shadow-lg">
+                        {branding?.logoUrl ? <img src={branding.logoUrl} alt="" className="h-14 w-14 rounded-xl object-cover" /> : branding?.iconEmoji || m.emoji}
+                      </div>
+                      <div className="text-base font-black text-white leading-tight">{branding?.displayName || game.name}</div>
+                      <div className="text-[10px] mt-0.5 font-semibold uppercase tracking-wide" style={{ color: branding?.accentColor || 'rgba(255,255,255,0.4)' }}>{branding?.tagline || m.tag}</div>
                     </div>
                     <div className="relative flex items-center justify-between mt-3">
-                      <span className="text-[10px] text-[rgba(255,255,255,0.3)]">{game.options.length} options</span>
-                      <span className="dl-badge-pink text-[9px]">LIVE</span>
+                      <span className="text-[10px] text-[rgba(255,255,255,0.55)]">{game.options.length} options</span>
+                      <span className={game.activeRound?.status === 'BETTING_OPEN' ? 'dl-badge-green text-[9px]' : 'dl-badge-gray text-[9px]'}>
+                        {game.activeRound?.status === 'BETTING_OPEN' ? 'BET NOW' : 'NEXT ROUND'}
+                      </span>
                     </div>
+                    {game.activeRound && <div className="relative mt-2 text-[10px] text-[rgba(255,255,255,0.45)]">Round #{game.activeRound.roundNumber}</div>}
                   </div>
                 </Link>
               );
             })}
+          </div>
+        )}
+
+        {!gLoading && games.length === 0 && (
+          <div className="dl-card rounded-2xl px-5 py-10 text-center">
+            <div className="text-3xl mb-2">🎲</div>
+            <p className="font-bold text-white">Rooms are taking a short break</p>
+            <p className="text-sm text-[rgba(255,255,255,0.45)] mt-1">Check back soon for the next live round.</p>
           </div>
         )}
 
@@ -205,6 +230,15 @@ export default function GamesPage() {
           </div>
         </div>
       </main>
+
+      <nav className="fixed bottom-0 inset-x-0 z-20 border-t border-[rgba(61,17,85,0.7)] bg-[rgba(10,0,16,0.92)] backdrop-blur-xl">
+        <div className="max-w-md mx-auto grid grid-cols-4 px-3 py-2 text-[10px] font-bold text-[rgba(255,255,255,0.45)]">
+          <Link href="/games" className="flex flex-col items-center gap-1 text-[#ff1fa6]"><Home size={17} />Lobby</Link>
+          <Link href="/profile" className="flex flex-col items-center gap-1 hover:text-white"><History size={17} />Activity</Link>
+          <Link href="/profile" className="flex flex-col items-center gap-1 hover:text-white"><MessageCircle size={17} />Messages</Link>
+          <Link href="/profile" className="flex flex-col items-center gap-1 hover:text-white"><ArrowUpRight size={17} />Profile</Link>
+        </div>
+      </nav>
     </div>
   );
 }

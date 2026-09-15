@@ -93,7 +93,7 @@ export default function SlotPage() {
   if (!player||!game) return null;
 
   return (
-    <GameLayout title="Slot Machine" balance={balance} roundNumber={round?.roundNumber}>
+    <GameLayout title={game.branding?.displayName || 'Slot Machine'} branding={game.branding} balance={balance} roundNumber={round?.roundNumber}>
       <div className="flex flex-col items-center gap-4 p-4 max-w-lg mx-auto w-full flex-1">
         {round&&<StatusBanner status={round.status} winnerId={round.winnerId} winnerLabel={winOption?.label}/>}
 

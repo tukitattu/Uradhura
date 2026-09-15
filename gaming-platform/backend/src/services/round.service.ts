@@ -99,8 +99,11 @@ export async function setRoundResult(
     include: { game: { include: { options: true } } },
   });
   if (!round) throw new Error('Round not found');
+  if (round.status !== 'BETTING_CLOSED') {
+    throw new Error('Round must be closed before a result can be set');
+  }
 
-  const option = round.game.options.find((o) => o.id === winningOptionId);
+  const option = round.game.options.find((o) => o.id === winningOptionId && o.isActive);
   if (!option) throw new Error('Winning option not found');
 
   const [updatedRound] = await prisma.$transaction([

@@ -6,8 +6,8 @@
   "scripts": {
     "install:all": "cd backend && npm install && cd ../frontend && npm install",
     "setup": "cd backend && npm install && npx prisma generate && npx prisma migrate dev --name init && npm run prisma:seed",
-    "dev:backend": "cd backend && npm run dev",
-    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && ../node_modules/.bin/ts-node-dev --respawn --transpile-only src/index.ts",
+    "dev:frontend": "cd frontend && ../node_modules/.bin/next dev",
     "build:backend": "cd backend && npm run build",
     "build:frontend": "cd frontend && npm run build"
   }

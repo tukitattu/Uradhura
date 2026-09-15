@@ -3,8 +3,8 @@ import './globals.css';
 import DesignTokenProvider from '@/components/DesignTokenProvider';
 
 export const metadata: Metadata = {
-  title: 'DearLive Gaming',
-  description: 'Premium live gaming platform — 6 exciting games, live rounds, instant payouts',
+  title: 'Ura Live',
+  description: 'Ura Live social rooms, moments, games, and community',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

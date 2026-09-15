@@ -43,7 +43,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Logo */}
         <div className="p-4 border-b border-[rgba(61,17,85,0.6)]">
           <div className="flex items-center gap-2.5">
-            <img src="/assets/logo/dearlive-logo.png" alt="DearLive" className="h-9 drop-shadow-lg" />
+            <img src="/assets/logo/ura-logo.jpg" alt="Ura" className="h-9 w-9 rounded-full object-cover ring-1 ring-[#f6c453]/70" />
             <div>
               <div className="text-xs font-black text-white">GameAdmin</div>
               <div className="text-[9px] text-[rgba(255,255,255,0.35)] uppercase tracking-wide">

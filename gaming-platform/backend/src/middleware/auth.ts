@@ -17,7 +17,7 @@ declare global {
   }
 }
 
-export function authenticate(req: Request, res: Response, next: NextFunction): void {
+export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     sendError(res, 'Authentication required', 'UNAUTHORIZED', 401);
@@ -27,7 +27,16 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
-    req.player = decoded;
+    const prisma = (await import('../config/database')).default;
+    const player = await prisma.player.findUnique({
+      where: { id: decoded.playerId },
+      select: { id: true, username: true, role: true, isActive: true },
+    });
+    if (!player || !player.isActive) {
+      sendError(res, 'Account is inactive or unavailable', 'ACCOUNT_INACTIVE', 401);
+      return;
+    }
+    req.player = { playerId: player.id, username: player.username, role: player.role };
     next();
   } catch {
     sendError(res, 'Invalid or expired token', 'TOKEN_INVALID', 401);
