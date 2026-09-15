@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import { attachRequestId } from './middleware/auth';
 import routes from './routes';
 import logger from './utils/logger';
+import { startScheduler } from './services/scheduler.service';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -57,6 +58,8 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 app.listen(PORT, () => {
   logger.info(`🎮 Gaming Platform API running on http://localhost:${PORT}`);
+  // Start the round scheduler after the server is up
+  startScheduler();
 });
 
 export default app;

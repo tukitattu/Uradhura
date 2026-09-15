@@ -290,6 +290,7 @@ export interface ProfitRiskConfig {
 }
 
 export interface SimulationResult {
+  simulatedAt?: string;
   expectedProfit: number;
   roi: number;
   maxExposure: number;
