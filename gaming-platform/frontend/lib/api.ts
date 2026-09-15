@@ -151,6 +151,22 @@ export const adminApi = {
     }),
   settleRound: (roundId: string) =>
     apiFetch(`/games/rounds/${roundId}/settle`, { method: 'POST', body: '{}' }),
+  toggleGame: (gameId: string, isActive: boolean) =>
+    apiFetch(`/admin/games/${gameId}/toggle`, { method: 'PATCH', body: JSON.stringify({ isActive }) }),
+  upsertGameOption: (gameId: string, data: Partial<GameOption> & { id?: string }) =>
+    apiFetch<GameOption>(`/admin/games/${gameId}/options`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteGameOption: (gameId: string, optionId: string) =>
+    apiFetch(`/admin/games/${gameId}/options/${optionId}`, { method: 'DELETE' }),
+  updateGameDurations: (gameId: string, bettingDurationSeconds: number, roundDurationSeconds: number) =>
+    apiFetch(`/admin/games/${gameId}/durations`, { method: 'PUT', body: JSON.stringify({ bettingDurationSeconds, roundDurationSeconds }) }),
+  getActiveRoundsAll: () =>
+    apiFetch<ActiveRound[]>('/admin/rounds/active'),
+  forceCloseRound: (roundId: string) =>
+    apiFetch(`/admin/rounds/${roundId}/force-close`, { method: 'POST', body: '{}' }),
+  forceSetResult: (roundId: string, winningOptionId: string) =>
+    apiFetch(`/admin/rounds/${roundId}/force-result`, { method: 'POST', body: JSON.stringify({ winningOptionId }) }),
+  forceSettle: (roundId: string) =>
+    apiFetch(`/admin/rounds/${roundId}/force-settle`, { method: 'POST', body: '{}' }),
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -206,6 +222,7 @@ export interface Game {
 }
 
 export interface GameOption {
+  isActive: boolean;
   id: string;
   gameId: string;
   label: string;
@@ -306,6 +323,17 @@ export interface DashboardData {
   todayBets: { total: number; count: number; changeVsYesterday: number };
   netProfit: { total: number; changeVsYesterday: number };
   systemStatus: string;
+}
+
+export interface ActiveRound {
+  id: string;
+  gameId: string;
+  roundNumber: number;
+  status: string;
+  bettingEndsAt?: string;
+  totalBetAmount: number;
+  betCount: number;
+  game: { id: string; name: string; slug: string };
 }
 
 export interface AuditLog {

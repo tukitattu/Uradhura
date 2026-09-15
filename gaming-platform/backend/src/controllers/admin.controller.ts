@@ -462,3 +462,259 @@ export async function updateGameConfig(req: Request, res: Response): Promise<voi
 
   sendSuccess(res, config, 'Game configuration updated');
 }
+
+// ─── Game Toggle ──────────────────────────────────────────────────────────────
+
+export async function toggleGame(req: Request, res: Response): Promise<void> {
+  const { gameId } = req.params;
+  const { isActive } = req.body;
+
+  const game = await prisma.game.findUnique({ where: { id: gameId } });
+  if (!game) {
+    sendError(res, 'Game not found', 'NOT_FOUND', 404);
+    return;
+  }
+
+  const updated = await prisma.game.update({
+    where: { id: gameId },
+    data: { isActive },
+  });
+
+  await createAuditLog({
+    actorId: req.player?.playerId,
+    actorType: 'admin',
+    action: isActive ? 'GAME_ENABLED' : 'GAME_DISABLED',
+    entityType: 'game',
+    entityId: gameId,
+    before: { isActive: game.isActive },
+    after: { isActive },
+  });
+
+  sendSuccess(res, updated, `Game ${isActive ? 'enabled' : 'disabled'}`);
+}
+
+// ─── Game Option Upsert ───────────────────────────────────────────────────────
+
+export async function upsertGameOption(req: Request, res: Response): Promise<void> {
+  const { gameId } = req.params;
+  const { id, label, multiplier, colorHex, isHot, sortOrder, isActive, iconUrl } = req.body;
+
+  const game = await prisma.game.findUnique({ where: { id: gameId } });
+  if (!game) {
+    sendError(res, 'Game not found', 'NOT_FOUND', 404);
+    return;
+  }
+
+  const data = {
+    label,
+    multiplier: parseFloat(multiplier),
+    colorHex: colorHex ?? '#ffffff',
+    isHot: isHot ?? false,
+    sortOrder: sortOrder ?? 0,
+    isActive: isActive !== undefined ? isActive : true,
+    ...(iconUrl !== undefined ? { iconUrl } : {}),
+  };
+
+  let option;
+  if (id) {
+    option = await prisma.gameOption.update({ where: { id }, data });
+  } else {
+    option = await prisma.gameOption.create({ data: { ...data, gameId } });
+  }
+
+  await createAuditLog({
+    actorId: req.player?.playerId,
+    actorType: 'admin',
+    action: id ? 'GAME_OPTION_UPDATED' : 'GAME_OPTION_CREATED',
+    entityType: 'game_option',
+    entityId: option.id,
+    after: { gameId, ...data },
+  });
+
+  sendSuccess(res, option, id ? 'Option updated' : 'Option created');
+}
+
+// ─── Game Option Delete ───────────────────────────────────────────────────────
+
+export async function deleteGameOption(req: Request, res: Response): Promise<void> {
+  const { gameId, optionId } = req.params;
+
+  const option = await prisma.gameOption.findFirst({ where: { id: optionId, gameId } });
+  if (!option) {
+    sendError(res, 'Option not found', 'NOT_FOUND', 404);
+    return;
+  }
+
+  await prisma.gameOption.update({ where: { id: optionId }, data: { isActive: false } });
+
+  await createAuditLog({
+    actorId: req.player?.playerId,
+    actorType: 'admin',
+    action: 'GAME_OPTION_DELETED',
+    entityType: 'game_option',
+    entityId: optionId,
+    before: option,
+  });
+
+  sendSuccess(res, null, 'Option deactivated');
+}
+
+// ─── Update Game Durations ────────────────────────────────────────────────────
+
+export async function updateGameDurations(req: Request, res: Response): Promise<void> {
+  const { gameId } = req.params;
+  const { bettingDurationSeconds, roundDurationSeconds } = req.body;
+
+  const game = await prisma.game.findUnique({ where: { id: gameId } });
+  if (!game) {
+    sendError(res, 'Game not found', 'NOT_FOUND', 404);
+    return;
+  }
+
+  const existing = await prisma.gameConfiguration.findFirst({ where: { gameId, isActive: true } });
+
+  // Parse existing configData or start fresh
+  let configData: Record<string, unknown> = {};
+  if (existing?.configData) {
+    try { configData = JSON.parse(existing.configData); } catch { /* keep empty */ }
+  }
+
+  configData.bettingDurationSeconds = bettingDurationSeconds;
+  configData.roundDurationSeconds = roundDurationSeconds;
+
+  const config = existing
+    ? await prisma.gameConfiguration.update({
+        where: { id: existing.id },
+        data: { configData: JSON.stringify(configData) },
+      })
+    : await prisma.gameConfiguration.create({
+        data: { gameId, configData: JSON.stringify(configData) },
+      });
+
+  await createAuditLog({
+    actorId: req.player?.playerId,
+    actorType: 'admin',
+    action: 'GAME_DURATIONS_UPDATED',
+    entityType: 'game_configuration',
+    entityId: config.id,
+    after: { gameId, bettingDurationSeconds, roundDurationSeconds },
+  });
+
+  sendSuccess(res, config, 'Game durations updated');
+}
+
+// ─── Force Close Round Betting ────────────────────────────────────────────────
+
+export async function adminForceCloseRound(req: Request, res: Response): Promise<void> {
+  const { roundId } = req.params;
+
+  const round = await prisma.gameRound.findUnique({ where: { id: roundId } });
+  if (!round) {
+    sendError(res, 'Round not found', 'NOT_FOUND', 404);
+    return;
+  }
+  if (round.status !== 'BETTING_OPEN') {
+    sendError(res, 'Round is not in BETTING_OPEN status', 'INVALID_STATE', 400);
+    return;
+  }
+
+  const updated = await prisma.gameRound.update({
+    where: { id: roundId },
+    data: { status: 'BETTING_CLOSED' },
+  });
+
+  await createAuditLog({
+    actorId: req.player?.playerId,
+    actorType: 'admin',
+    action: 'ROUND_FORCE_CLOSED',
+    entityType: 'round',
+    entityId: roundId,
+    before: { status: round.status },
+    after: { status: 'BETTING_CLOSED' },
+  });
+
+  sendSuccess(res, updated, 'Round betting closed');
+}
+
+// ─── Force Set Round Result ───────────────────────────────────────────────────
+
+import { setRoundResult, settleRound } from '../services/round.service';
+
+export async function adminForceSetResult(req: Request, res: Response): Promise<void> {
+  const { roundId } = req.params;
+  const { winningOptionId, resultData } = req.body;
+
+  if (!winningOptionId) {
+    sendError(res, 'winningOptionId is required', 'VALIDATION_ERROR', 400);
+    return;
+  }
+
+  try {
+    const updated = await setRoundResult(roundId, winningOptionId, resultData ?? {}, 'admin');
+
+    await createAuditLog({
+      actorId: req.player?.playerId,
+      actorType: 'admin',
+      action: 'ROUND_RESULT_FORCED',
+      entityType: 'round',
+      entityId: roundId,
+      after: { winningOptionId, resultData },
+    });
+
+    sendSuccess(res, updated, 'Round result set');
+  } catch (err: unknown) {
+    sendError(res, (err as Error).message, 'SERVICE_ERROR', 400);
+  }
+}
+
+// ─── Force Settle Round ───────────────────────────────────────────────────────
+
+export async function adminSettle(req: Request, res: Response): Promise<void> {
+  const { roundId } = req.params;
+
+  try {
+    const result = await settleRound(roundId);
+
+    await createAuditLog({
+      actorId: req.player?.playerId,
+      actorType: 'admin',
+      action: 'ROUND_FORCE_SETTLED',
+      entityType: 'round',
+      entityId: roundId,
+      after: result,
+    });
+
+    sendSuccess(res, result, 'Round settled');
+  } catch (err: unknown) {
+    sendError(res, (err as Error).message, 'SERVICE_ERROR', 400);
+  }
+}
+
+// ─── Get All Active Rounds ────────────────────────────────────────────────────
+
+export async function getActiveRoundsAll(req: Request, res: Response): Promise<void> {
+  const rounds = await prisma.gameRound.findMany({
+    where: {
+      status: { in: ['BETTING_OPEN', 'BETTING_CLOSED', 'RESULT_PROCESSING'] },
+    },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      game: { select: { id: true, name: true, slug: true } },
+      _count: { select: { bets: true } },
+    },
+  });
+
+  const result = rounds.map((r) => ({
+    id: r.id,
+    gameId: r.gameId,
+    roundNumber: r.roundNumber,
+    status: r.status,
+    bettingEndsAt: r.bettingEndsAt,
+    totalBetAmount: r.totalBetAmount,
+    betCount: r._count.bets,
+    game: r.game,
+  }));
+
+  sendSuccess(res, result);
+}
+
