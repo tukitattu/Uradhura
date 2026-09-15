@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { cn, formatMultiplier } from '@/lib/utils';
 import type { GameOption, OptionTotal } from '@/lib/api';
 
@@ -7,7 +7,7 @@ interface BettingWheelProps {
   options: GameOption[];
   totals: OptionTotal[];
   selectedOptionId: string | null;
-  onSelect: (optionId: string) => void;
+  onSelect: (id: string) => void;
   disabled?: boolean;
   winnerId?: string | null;
   spinning?: boolean;
@@ -16,40 +16,23 @@ interface BettingWheelProps {
 }
 
 export default function BettingWheel({
-  options,
-  totals,
-  selectedOptionId,
-  onSelect,
-  disabled,
-  winnerId,
-  spinning,
-  centerLabel = 'GREEDY',
-  centerEmoji = '🐷',
+  options, totals, selectedOptionId, onSelect, disabled,
+  winnerId, spinning, centerLabel = 'GAME', centerEmoji = '🎮',
 }: BettingWheelProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [rotation, setRotation] = useState(0);
   const animRef = useRef<number>();
-
-  const totalBets = totals.reduce((s, t) => s + t.totalAmount, 0);
-  const r = 42; // radius percent from center — reduced from 44 to prevent edge clipping
 
   useEffect(() => {
     if (spinning) {
       let angle = rotation;
-      const targetAngle = angle + 1800 + Math.random() * 360;
-      const duration = 4000;
+      const target = angle + 1440 + Math.random() * 360;
+      const duration = 3500;
       const start = performance.now();
-
       const animate = (now: number) => {
-        const elapsed = now - start;
-        const progress = Math.min(elapsed / duration, 1);
-        // Ease out cubic
-        const eased = 1 - Math.pow(1 - progress, 3);
-        angle = rotation + (targetAngle - rotation) * eased;
-        setRotation(angle % 360);
-        if (progress < 1) {
-          animRef.current = requestAnimationFrame(animate);
-        }
+        const p = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - p, 4);
+        setRotation((rotation + (target - rotation) * eased) % 360);
+        if (p < 1) animRef.current = requestAnimationFrame(animate);
       };
       animRef.current = requestAnimationFrame(animate);
       return () => cancelAnimationFrame(animRef.current!);
@@ -59,41 +42,65 @@ export default function BettingWheel({
   if (!options.length) return null;
 
   const sliceAngle = 360 / options.length;
+  const totalPool  = totals.reduce((s, t) => s + t.totalAmount, 0);
 
   return (
-    <div className="max-w-[340px] w-full mx-auto relative flex items-center justify-center select-none">
-      {/* Outer ring - option buttons */}
-      <div className="relative w-full aspect-square max-w-[320px] md:max-w-[400px] overflow-visible">
-        {/* Spin wheel visual */}
-        <div
-          className="absolute inset-4 rounded-full border-4 border-game-border"
+    <div className="relative flex items-center justify-center select-none w-full max-w-[340px] sm:max-w-[380px] mx-auto">
+      <div className="relative w-full aspect-square overflow-visible">
+
+        {/* Outer glow ring */}
+        <div className="absolute inset-0 rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(255,31,166,0.08) 0%, transparent 70%)' }} />
+
+        {/* Conic wheel */}
+        <div className="absolute inset-[10%] rounded-full border-2 border-[rgba(61,17,85,0.8)]"
           style={{
             transform: `rotate(${rotation}deg)`,
-            transition: spinning ? 'none' : 'transform 0.3s ease',
-            background: `conic-gradient(${options.map((o, i) => `${o.colorHex}33 ${i * sliceAngle}deg ${(i + 1) * sliceAngle}deg`).join(', ')})`,
+            transition: spinning ? 'none' : 'transform 0.4s ease',
+            background: `conic-gradient(${options.map((o, i) =>
+              `${o.colorHex}28 ${i * sliceAngle}deg ${(i + 1) * sliceAngle}deg`
+            ).join(', ')})`,
+            boxShadow: '0 0 40px rgba(139,0,255,0.15), inset 0 0 40px rgba(0,0,0,0.4)',
           }}
         />
 
-        {/* Winner highlight pointer */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1 z-20 text-2xl">▼</div>
+        {/* Tick lines */}
+        {options.map((_, i) => {
+          const a = (i * sliceAngle - 90) * (Math.PI / 180);
+          return (
+            <div key={i} className="absolute inset-[10%] rounded-full"
+              style={{
+                transform: `rotate(${i * sliceAngle}deg)`,
+                transformOrigin: 'center',
+              }}>
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-[10%] bg-[rgba(255,255,255,0.06)]" />
+            </div>
+          );
+        })}
 
-        {/* Center character */}
+        {/* Top pointer */}
+        <div className="absolute top-[8%] left-1/2 -translate-x-1/2 z-20 text-[#ffd700] text-xl drop-shadow-lg">▼</div>
+
+        {/* Center circle */}
         <div className={cn(
-          'absolute inset-[38%] rounded-full flex flex-col items-center justify-center z-10 border-4 font-black text-center shadow-2xl',
-          winnerId ? 'border-game-gold bg-game-gold/20 animate-bounce-in' : 'border-brand-500 bg-game-bg'
+          'absolute inset-[35%] rounded-full flex flex-col items-center justify-center z-10 border-2 transition-all duration-500',
+          winnerId
+            ? 'border-[#ffd700] bg-[rgba(255,215,0,0.12)] glow-gold'
+            : 'border-[rgba(255,31,166,0.5)] bg-[rgba(10,0,16,0.95)] glow-pink'
         )}>
-          <span className="text-2xl">{centerEmoji}</span>
-          <span className="text-[8px] text-game-gold font-bold">{centerLabel}</span>
+          <span className="text-xl leading-none">{centerEmoji}</span>
+          <span className="text-[8px] font-black tracking-widest mt-0.5 text-gradient-pink uppercase">{centerLabel}</span>
         </div>
 
-        {/* Option buttons arranged in circle */}
+        {/* Option buttons in circle */}
         {options.map((option, i) => {
           const angle = (i * sliceAngle - 90) * (Math.PI / 180);
+          const r = 41;
           const x = 50 + r * Math.cos(angle);
           const y = 50 + r * Math.sin(angle);
-          const total = totals.find((t) => t.optionId === option.id);
+          const total = totals.find(t => t.optionId === option.id);
           const isSelected = selectedOptionId === option.id;
-          const isWinner = winnerId === option.id;
+          const isWinner   = winnerId === option.id;
 
           return (
             <button
@@ -101,29 +108,23 @@ export default function BettingWheel({
               onClick={() => !disabled && onSelect(option.id)}
               disabled={disabled}
               className={cn(
-                'absolute -translate-x-1/2 -translate-y-1/2 z-20 rounded-lg border-2 transition-all text-center min-w-[44px] sm:min-w-[56px]',
-                isSelected && 'scale-110 shadow-lg',
-                isWinner && 'scale-125 animate-bounce-in shadow-2xl',
-                disabled && !isWinner && 'opacity-70 cursor-not-allowed',
-                !disabled && !isSelected && 'hover:scale-105 cursor-pointer'
+                'bet-option',
+                isSelected && 'selected',
+                isWinner   && 'winner',
+                disabled && !isWinner && 'disabled'
               )}
-              style={{
-                left: `${x}%`,
-                top: `${y}%`,
-                backgroundColor: isWinner ? option.colorHex : isSelected ? option.colorHex + 'cc' : option.colorHex + '33',
-                borderColor: isWinner ? option.colorHex : isSelected ? option.colorHex : option.colorHex + '66',
-              }}
+              style={{ left: `${x}%`, top: `${y}%`, borderColor: isWinner ? '#ffd700' : isSelected ? option.colorHex : `${option.colorHex}44` }}
             >
-              <div className="px-1.5 py-1">
-                {option.isHot && (
-                  <div className="text-[8px] font-black text-orange-400 -mb-0.5">HOT 🔥</div>
-                )}
-                <div className="text-xs font-black text-white leading-tight">{option.label}</div>
-                <div className="text-[10px] font-bold" style={{ color: option.colorHex }}>
+              <div className="px-1.5 py-1.5">
+                {option.isHot && <div className="text-[9px] font-black text-[#ffaa00] -mb-0.5 text-center">🔥HOT</div>}
+                <div className="text-[11px] font-black text-white leading-tight text-center">{option.label}</div>
+                <div className="text-[10px] font-bold text-center" style={{ color: isWinner ? '#ffd700' : option.colorHex }}>
                   {formatMultiplier(option.multiplier)}
                 </div>
                 {total && total.totalAmount > 0 && (
-                  <div className="text-[8px] text-gray-300 mt-0.5">{Math.round(total.totalAmount / 1000)}K</div>
+                  <div className="text-[8px] text-[rgba(255,255,255,0.5)] text-center mt-0.5">
+                    {Math.round(total.totalAmount / 1000)}K
+                  </div>
                 )}
               </div>
             </button>
@@ -131,10 +132,10 @@ export default function BettingWheel({
         })}
       </div>
 
-      {/* Total pool indicator */}
-      {totalBets > 0 && (
-        <div className="absolute bottom-0 text-xs text-gray-400">
-          Pool: 🪙{(totalBets / 1000).toFixed(1)}K
+      {/* Pool indicator */}
+      {totalPool > 0 && (
+        <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-xs text-[rgba(255,255,255,0.4)] font-semibold whitespace-nowrap">
+          Pool 🪙 {(totalPool / 1000).toFixed(1)}K
         </div>
       )}
     </div>

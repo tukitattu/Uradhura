@@ -59,17 +59,17 @@ function LiveRoundCard({
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="bg-game-bg rounded-lg p-2">
+          <div className="bg-[#0a0010] rounded-lg p-2">
             <p className="text-[10px] text-gray-400">Timer</p>
-            <p className={cn('text-sm font-black', secs <= 5 && round.status === 'BETTING_OPEN' ? 'text-game-red' : 'text-white')}>
+            <p className={cn('text-sm font-black', secs <= 5 && round.status === 'BETTING_OPEN' ? 'text-[#ff3d57]' : 'text-white')}>
               {round.status === 'BETTING_OPEN' ? formatTime(secs) : '—'}
             </p>
           </div>
-          <div className="bg-game-bg rounded-lg p-2">
+          <div className="bg-[#0a0010] rounded-lg p-2">
             <p className="text-[10px] text-gray-400">Pool</p>
-            <p className="text-sm font-black text-game-gold">🪙{formatTokens(round.totalBetAmount)}</p>
+            <p className="text-sm font-black text-[#ffd700]">🪙{formatTokens(round.totalBetAmount)}</p>
           </div>
-          <div className="bg-game-bg rounded-lg p-2">
+          <div className="bg-[#0a0010] rounded-lg p-2">
             <p className="text-[10px] text-gray-400">Bets</p>
             <p className="text-sm font-black text-white">{round.betCount}</p>
           </div>
@@ -88,7 +88,7 @@ function LiveRoundCard({
                 <Zap size={12} /> Set Winner <ChevronDown size={10} />
               </Button>
               {showOptions && (
-                <div className="absolute top-full left-0 mt-1 z-30 bg-game-card border border-game-border rounded-xl shadow-2xl p-2 min-w-[160px]">
+                <div className="absolute top-full left-0 mt-1 z-30 bg-[#1a0028] border border-[rgba(61,17,85,0.6)] rounded-xl shadow-2xl p-2 min-w-[160px]">
                   {options.map(o => (
                     <button key={o.id}
                       onClick={() => { onForceResult(round.id, o.id); setShowOptions(false); }}
@@ -139,7 +139,7 @@ function OptionRow({
 
   if (editing) {
     return (
-      <div className="p-3 bg-game-bg rounded-xl border border-brand-500/40 space-y-2">
+      <div className="p-3 bg-[#0a0010] rounded-xl border border-[rgba(255,31,166,0.5)]/40 space-y-2">
         <div className="grid grid-cols-2 gap-2">
           <Input label="Label" value={form.label} onChange={e => setForm(p => ({ ...p, label: e.target.value }))} />
           <Input label="Multiplier" type="number" step="0.01" value={form.multiplier} onChange={e => setForm(p => ({ ...p, multiplier: parseFloat(e.target.value) }))} />
@@ -148,7 +148,7 @@ function OptionRow({
           <div>
             <label className="text-xs text-gray-400 block mb-1">Color</label>
             <input type="color" value={form.colorHex} onChange={e => setForm(p => ({ ...p, colorHex: e.target.value }))}
-              className="w-10 h-8 rounded cursor-pointer border border-game-border bg-transparent" />
+              className="w-10 h-8 rounded cursor-pointer border border-[rgba(61,17,85,0.6)] bg-transparent" />
           </div>
           <label className="flex items-center gap-2 cursor-pointer mt-3">
             <button onClick={() => setForm(p => ({ ...p, isHot: !p.isHot }))}
@@ -175,7 +175,7 @@ function OptionRow({
 
   return (
     <div className={cn('flex items-center gap-3 p-2.5 rounded-lg border transition-all',
-      option.isActive ? 'border-game-border' : 'border-game-border/30 opacity-50')}>
+      option.isActive ? 'border-[rgba(61,17,85,0.6)]' : 'border-[rgba(61,17,85,0.6)]/30 opacity-50')}>
       <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: option.colorHex }} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
@@ -190,7 +190,7 @@ function OptionRow({
           <Edit2 size={13} />
         </button>
         <button onClick={() => { if (confirm(`Deactivate "${option.label}"?`)) onDelete(option.id); }}
-          className="p-1.5 rounded hover:bg-game-red/20 text-gray-400 hover:text-game-red transition-colors">
+          className="p-1.5 rounded hover:bg-game-red/20 text-gray-400 hover:text-[#ff3d57] transition-colors">
           <Trash2 size={13} />
         </button>
       </div>
@@ -224,8 +224,8 @@ function AddOptionForm({ gameId, onAdded }: { gameId: string; onAdded: (o: GameO
   );
 
   return (
-    <div className="p-3 bg-game-bg rounded-xl border border-game-green/30 space-y-2">
-      <p className="text-xs font-bold text-game-green mb-1">New Betting Option</p>
+    <div className="p-3 bg-[#0a0010] rounded-xl border border-game-green/30 space-y-2">
+      <p className="text-xs font-bold text-[#00e676] mb-1">New Betting Option</p>
       <div className="grid grid-cols-2 gap-2">
         <Input label="Label" value={form.label} onChange={e => setForm(p => ({ ...p, label: e.target.value }))} placeholder="e.g. Dragon" />
         <Input label="Multiplier" type="number" step="0.01" value={form.multiplier} onChange={e => setForm(p => ({ ...p, multiplier: parseFloat(e.target.value) }))} />
@@ -234,7 +234,7 @@ function AddOptionForm({ gameId, onAdded }: { gameId: string; onAdded: (o: GameO
         <div>
           <label className="text-xs text-gray-400 block mb-1">Color</label>
           <input type="color" value={form.colorHex} onChange={e => setForm(p => ({ ...p, colorHex: e.target.value }))}
-            className="w-10 h-8 rounded cursor-pointer border border-game-border bg-transparent" />
+            className="w-10 h-8 rounded cursor-pointer border border-[rgba(61,17,85,0.6)] bg-transparent" />
         </div>
         <label className="flex items-center gap-2 cursor-pointer mt-3">
           <button onClick={() => setForm(p => ({ ...p, isHot: !p.isHot }))}
@@ -318,12 +318,12 @@ function ConfigPanel({ game, onRefresh }: { game: Game; onRefresh: () => void })
       )}
 
       {/* Tabs */}
-      <div className="flex border-b border-game-border">
+      <div className="flex border-b border-[rgba(61,17,85,0.6)]">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={cn('px-4 py-2 text-sm font-medium transition-all border-b-2 -mb-px',
               tab === t.id
-                ? 'border-brand-400 text-brand-400 bg-brand-500/10'
+                ? 'border-brand-400 text-[#ff1fa6] bg-[#ff1fa6]/10'
                 : 'border-transparent text-gray-400 hover:text-white')}>
             {t.label}
           </button>
@@ -344,7 +344,7 @@ function ConfigPanel({ game, onRefresh }: { game: Game; onRefresh: () => void })
               onChange={e => setConfig(p => ({ ...p, maxDailyLoss: parseFloat(e.target.value) }))} />
           </div>
 
-          <div className="border-t border-game-border pt-3">
+          <div className="border-t border-[rgba(61,17,85,0.6)] pt-3">
             <p className="text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Timing</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -388,7 +388,7 @@ function ConfigPanel({ game, onRefresh }: { game: Game; onRefresh: () => void })
       {/* ── Rounds Tab ── */}
       {tab === 'rounds' && (
         <div className="space-y-3">
-          <div className="bg-game-bg rounded-xl p-4 border border-game-border space-y-3">
+          <div className="bg-[#0a0010] rounded-xl p-4 border border-[rgba(61,17,85,0.6)] space-y-3">
             <p className="text-sm font-bold text-white">Start New Round</p>
             <div className="flex items-end gap-2">
               <div className="flex-1">
@@ -401,7 +401,7 @@ function ConfigPanel({ game, onRefresh }: { game: Game; onRefresh: () => void })
             </div>
           </div>
 
-          <div className="bg-game-bg/50 rounded-xl p-3 border border-game-border/50">
+          <div className="bg-[#0a0010]/50 rounded-xl p-3 border border-[rgba(61,17,85,0.6)]/50">
             <p className="text-xs text-gray-400 flex items-center gap-1.5">
               <Clock size={12} /> Auto-scheduler runs rounds every {config.bettingDurationSeconds}s automatically.
               Use force controls in the Live Monitor above to override.
@@ -493,7 +493,7 @@ export default function AdminGamesPage() {
       <div className="h-8 w-48 bg-game-border rounded animate-pulse" />
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-40 bg-game-card border border-game-border rounded-2xl animate-pulse" />
+          <div key={i} className="h-40 bg-[#1a0028] border border-[rgba(61,17,85,0.6)] rounded-2xl animate-pulse" />
         ))}
       </div>
     </div>
@@ -550,8 +550,8 @@ export default function AdminGamesPage() {
               key={game.id}
               onClick={() => setSelectedGame(game)}
               className={cn(
-                'w-full text-left rounded-2xl border-2 p-4 transition-all hover:border-brand-500/60',
-                selectedGame?.id === game.id ? 'border-brand-500 bg-brand-500/5' : 'border-game-border bg-game-card'
+                'w-full text-left rounded-2xl border-2 p-4 transition-all hover:border-[rgba(255,31,166,0.5)]/60',
+                selectedGame?.id === game.id ? 'border-[rgba(255,31,166,0.5)] bg-[#ff1fa6]/5' : 'border-[rgba(61,17,85,0.6)] bg-[#1a0028]'
               )}
             >
               <div className="flex items-start justify-between mb-3">
@@ -571,15 +571,15 @@ export default function AdminGamesPage() {
                     title={game.isActive ? 'Click to disable' : 'Click to enable'}
                   >
                     {game.isActive
-                      ? <ToggleRight size={24} className="text-game-green" />
+                      ? <ToggleRight size={24} className="text-[#00e676]" />
                       : <ToggleLeft size={24} className="text-gray-500" />
                     }
-                    <span className={cn('text-xs font-bold', game.isActive ? 'text-game-green' : 'text-gray-500')}>
+                    <span className={cn('text-xs font-bold', game.isActive ? 'text-[#00e676]' : 'text-gray-500')}>
                       {game.isActive ? 'ON' : 'OFF'}
                     </span>
                   </button>
                   {activeRounds.some(r => r.gameId === game.id) && (
-                    <span className="text-[10px] text-game-green flex items-center gap-1">
+                    <span className="text-[10px] text-[#00e676] flex items-center gap-1">
                       <div className="w-1.5 h-1.5 rounded-full bg-game-green animate-pulse" /> Live
                     </span>
                   )}
@@ -602,7 +602,7 @@ export default function AdminGamesPage() {
               </div>
 
               {selectedGame?.id === game.id && (
-                <div className="mt-2 text-xs text-brand-400 flex items-center gap-1">
+                <div className="mt-2 text-xs text-[#ff1fa6] flex items-center gap-1">
                   <Settings size={11} /> Editing below →
                 </div>
               )}
@@ -611,10 +611,10 @@ export default function AdminGamesPage() {
         </div>
 
         {/* Config panel */}
-        <Card className={cn('xl:sticky xl:top-6 self-start transition-all', selectedGame ? 'border-brand-500/40' : '')}>
+        <Card className={cn('xl:sticky xl:top-6 self-start transition-all', selectedGame ? 'border-[rgba(255,31,166,0.5)]/40' : '')}>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Settings size={16} className="text-brand-400" />
+              <Settings size={16} className="text-[#ff1fa6]" />
               <h2 className="font-bold text-white">
                 {selectedGame
                   ? `${GAME_EMOJIS[selectedGame.slug] || '🎲'} ${selectedGame.name}`

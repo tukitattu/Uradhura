@@ -78,7 +78,7 @@ export default function ReportsPage() {
               <select
                 value={filters.status}
                 onChange={e => setFilters(p => ({ ...p, status: e.target.value }))}
-                className="w-full bg-game-bg border border-game-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
+                className="w-full bg-[#0a0010] border border-[rgba(61,17,85,0.6)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
               >
                 <option value="">All</option>
                 <option value="PENDING">Pending</option>
@@ -98,14 +98,14 @@ export default function ReportsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <FileText size={16} className="text-brand-400" />
+            <FileText size={16} className="text-[#ff1fa6]" />
             <h2 className="font-bold text-white">Bet Report</h2>
           </div>
         </CardHeader>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-game-border">
+              <tr className="border-b border-[rgba(61,17,85,0.6)]">
                 {['Bet ID', 'Player', 'Game', 'Option', 'Amount', 'Payout', 'Status', 'Date'].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wide">{h}</th>
                 ))}
@@ -114,20 +114,20 @@ export default function ReportsPage() {
             <tbody>
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-b border-game-border/50">
+                  <tr key={i} className="border-b border-[rgba(61,17,85,0.6)]/50">
                     {Array.from({ length: 8 }).map((_, j) => (
                       <td key={j} className="px-4 py-3"><div className="h-4 bg-game-border rounded animate-pulse" /></td>
                     ))}
                   </tr>
                 ))
               ) : bets.map(bet => (
-                <tr key={bet.id} className="border-b border-game-border/50 hover:bg-white/5 text-sm">
+                <tr key={bet.id} className="border-b border-[rgba(61,17,85,0.6)]/50 hover:bg-white/5 text-sm">
                   <td className="px-4 py-3 text-gray-400 font-mono text-xs">{bet.id.slice(0, 8)}...</td>
                   <td className="px-4 py-3 text-white">{(bet as unknown as { player?: { username: string } }).player?.username || '—'}</td>
                   <td className="px-4 py-3 text-gray-300">{(bet as unknown as { round?: { game?: { name: string } } }).round?.game?.name || '—'}</td>
                   <td className="px-4 py-3 text-gray-300">{bet.option?.label || '—'}</td>
                   <td className="px-4 py-3 font-bold text-white">🪙 {formatTokens(bet.amount)}</td>
-                  <td className="px-4 py-3 font-bold text-game-gold">{bet.payout ? `🪙 ${formatTokens(bet.payout)}` : '—'}</td>
+                  <td className="px-4 py-3 font-bold text-[#ffd700]">{bet.payout ? `🪙 ${formatTokens(bet.payout)}` : '—'}</td>
                   <td className="px-4 py-3">
                     <Badge variant={bet.status === 'WON' ? 'green' : bet.status === 'LOST' ? 'red' : bet.status === 'PENDING' ? 'blue' : 'gray'}>
                       {bet.status}
@@ -139,7 +139,7 @@ export default function ReportsPage() {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between px-4 py-3 border-t border-game-border">
+        <div className="flex items-center justify-between px-4 py-3 border-t border-[rgba(61,17,85,0.6)]">
           <span className="text-xs text-gray-400">{total} total records</span>
           <div className="flex gap-2">
             <Button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} variant="ghost" size="sm"><ChevronLeft size={14} /></Button>

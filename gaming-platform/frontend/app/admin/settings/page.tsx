@@ -14,13 +14,13 @@ export default function SettingsPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <Card>
-          <CardHeader><div className="flex items-center gap-2"><Globe size={16} className="text-brand-400" /><h2 className="font-bold text-white">Platform Settings</h2></div></CardHeader>
+          <CardHeader><div className="flex items-center gap-2"><Globe size={16} className="text-[#ff1fa6]" /><h2 className="font-bold text-white">Platform Settings</h2></div></CardHeader>
           <CardBody className="space-y-4">
             <Input label="Platform Name" defaultValue="GameZone" />
             <Input label="Default Currency Symbol" defaultValue="🪙" />
             <div>
               <label className="block text-xs text-gray-400 mb-1">Default Language</label>
-              <select className="w-full bg-game-bg border border-game-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
+              <select className="w-full bg-[#0a0010] border border-[rgba(61,17,85,0.6)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
                 <option>English</option>
                 <option>Spanish</option>
                 <option>Chinese</option>
@@ -33,7 +33,7 @@ export default function SettingsPage() {
         </Card>
 
         <Card>
-          <CardHeader><div className="flex items-center gap-2"><Lock size={16} className="text-game-red" /><h2 className="font-bold text-white">Security Settings</h2></div></CardHeader>
+          <CardHeader><div className="flex items-center gap-2"><Lock size={16} className="text-[#ff3d57]" /><h2 className="font-bold text-white">Security Settings</h2></div></CardHeader>
           <CardBody className="space-y-4">
             <Input label="Session Timeout (hours)" type="number" defaultValue="24" />
             <Input label="Max Login Attempts" type="number" defaultValue="5" />
@@ -46,7 +46,7 @@ export default function SettingsPage() {
                 <span className="text-sm text-gray-300">Enabled for admin accounts</span>
               </div>
             </div>
-            <div className="bg-game-red/10 border border-game-red/20 rounded-lg p-3 text-sm text-game-red">
+            <div className="bg-game-red/10 border border-game-red/20 rounded-lg p-3 text-sm text-[#ff3d57]">
               <strong>Important:</strong> Always use HTTPS in production. Never expose admin credentials.
             </div>
             <Button variant="danger" className="w-full">Update Security Settings</Button>
@@ -54,7 +54,7 @@ export default function SettingsPage() {
         </Card>
 
         <Card>
-          <CardHeader><div className="flex items-center gap-2"><Bell size={16} className="text-game-gold" /><h2 className="font-bold text-white">Notification Settings</h2></div></CardHeader>
+          <CardHeader><div className="flex items-center gap-2"><Bell size={16} className="text-[#ffd700]" /><h2 className="font-bold text-white">Notification Settings</h2></div></CardHeader>
           <CardBody className="space-y-3">
             {[
               { label: 'High-value bet alerts (> $1000)', enabled: true },

@@ -55,10 +55,10 @@ export default function ProfitRiskPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <TrendingUp size={18} className="text-brand-400" />
+                <TrendingUp size={18} className="text-[#ff1fa6]" />
                 <h2 className="font-black text-white">Global Configuration</h2>
               </div>
-              <span className="flex items-center gap-1.5 text-xs text-game-green font-bold bg-game-green/10 border border-game-green/20 px-2 py-1 rounded-full">
+              <span className="flex items-center gap-1.5 text-xs text-[#00e676] font-bold bg-game-green/10 border border-game-green/20 px-2 py-1 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-game-green" /> Active
               </span>
             </div>
@@ -81,7 +81,7 @@ export default function ProfitRiskPage() {
               onChange={e => setConfig(p => ({ ...p, maxDailyLossPerPlayer: parseFloat(e.target.value) }))} />
 
             {config.baseHouseEdge < 3 && (
-              <div className="flex items-start gap-2 p-3 bg-game-red/10 border border-game-red/20 rounded-lg text-sm text-game-red">
+              <div className="flex items-start gap-2 p-3 bg-game-red/10 border border-game-red/20 rounded-lg text-sm text-[#ff3d57]">
                 <AlertTriangle size={16} className="shrink-0 mt-0.5" />
                 Warning: House edge below 3% may result in platform losses at scale.
               </div>
@@ -113,7 +113,7 @@ export default function ProfitRiskPage() {
                     { label: 'Max Exposure', value: `$${formatTokens(simulation.maxExposure)}` },
                     { label: 'Risk Level', value: simulation.riskLevel },
                   ].map(({ label, value }) => (
-                    <div key={label} className="bg-game-bg rounded-xl p-3">
+                    <div key={label} className="bg-[#0a0010] rounded-xl p-3">
                       <p className="text-xs text-gray-400">{label}</p>
                       <p className="text-xl font-black text-white" style={label === 'Risk Level' ? { color: riskColor } : {}}>{value}</p>
                     </div>

@@ -63,7 +63,7 @@ export default function AuditLogsPage() {
             <div>
               <label className="block text-xs text-gray-400 mb-1">Entity Type</label>
               <select value={filters.entityType} onChange={e => setFilters(p => ({ ...p, entityType: e.target.value }))}
-                className="w-full bg-game-bg border border-game-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
+                className="w-full bg-[#0a0010] border border-[rgba(61,17,85,0.6)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
                 <option value="">All</option>
                 {['bet', 'round', 'player', 'wallet', 'config', 'token_package'].map(t => (
                   <option key={t} value={t}>{t}</option>
@@ -80,7 +80,7 @@ export default function AuditLogsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Shield size={16} className="text-brand-400" />
+            <Shield size={16} className="text-[#ff1fa6]" />
             <h2 className="font-bold text-white">Audit Trail</h2>
           </div>
         </CardHeader>
@@ -121,13 +121,13 @@ export default function AuditLogsPage() {
                     <div className="px-4 pb-3 grid grid-cols-2 gap-3">
                       {log.before && (
                         <div className="bg-game-red/5 border border-game-red/20 rounded-lg p-3">
-                          <div className="text-xs font-bold text-game-red mb-1">Before</div>
+                          <div className="text-xs font-bold text-[#ff3d57] mb-1">Before</div>
                           <pre className="text-xs text-gray-300 overflow-auto max-h-32">{JSON.stringify(JSON.parse(log.before), null, 2)}</pre>
                         </div>
                       )}
                       {log.after && (
                         <div className="bg-game-green/5 border border-game-green/20 rounded-lg p-3">
-                          <div className="text-xs font-bold text-game-green mb-1">After</div>
+                          <div className="text-xs font-bold text-[#00e676] mb-1">After</div>
                           <pre className="text-xs text-gray-300 overflow-auto max-h-32">{JSON.stringify(JSON.parse(log.after), null, 2)}</pre>
                         </div>
                       )}
@@ -138,7 +138,7 @@ export default function AuditLogsPage() {
             </div>
           )}
         </CardBody>
-        <div className="flex items-center justify-between px-4 py-3 border-t border-game-border">
+        <div className="flex items-center justify-between px-4 py-3 border-t border-[rgba(61,17,85,0.6)]">
           <span className="text-xs text-gray-400">{total} total entries</span>
           <div className="flex gap-2">
             <Button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} variant="ghost" size="sm"><ChevronLeft size={14} /></Button>

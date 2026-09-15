@@ -5,245 +5,176 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { gamesApi, playerApi, betsApi, type Game, type TokenPackage } from '@/lib/api';
 import { formatTokens } from '@/lib/utils';
-import { LogOut, Trophy, Settings, X, Coins } from 'lucide-react';
+import { LogOut, Settings, X, Coins, Sparkles, Crown } from 'lucide-react';
 
-const GAME_META: Record<string, { emoji: string; gradient: string; description: string }> = {
-  greedy: { emoji: '🐷', gradient: 'from-orange-600 to-red-700', description: 'Spin the food wheel & win big multipliers' },
-  'animal-wheel': { emoji: '🐯', gradient: 'from-yellow-600 to-orange-700', description: 'Wild animals, wild winnings' },
-  'teen-patti': { emoji: '🃏', gradient: 'from-blue-600 to-indigo-700', description: 'Classic 3-card poker style' },
-  'food-wheel': { emoji: '🍜', gradient: 'from-green-600 to-teal-700', description: 'Package deals & food spins' },
-  'three-card': { emoji: '🎴', gradient: 'from-purple-600 to-pink-700', description: 'Three players, one winner' },
-  slot: { emoji: '🎰', gradient: 'from-red-600 to-rose-700', description: 'Reels & multiplier jackpots' },
+const GAME_META: Record<string, { emoji: string; bg: string; glow: string; tag: string }> = {
+  greedy:        { emoji:'🐷', bg:'from-[#4a0020] to-[#1a0028]', glow:'rgba(255,31,166,0.3)',  tag:'Food Wheel' },
+  'animal-wheel':{ emoji:'🐯', bg:'from-[#3d1500] to-[#1a0028]', glow:'rgba(255,140,0,0.3)',   tag:'Animal Spins' },
+  'teen-patti':  { emoji:'🃏', bg:'from-[#001a4a] to-[#1a0028]', glow:'rgba(0,102,255,0.3)',   tag:'Card Game' },
+  'food-wheel':  { emoji:'🍜', bg:'from-[#003d1a] to-[#1a0028]', glow:'rgba(0,230,118,0.3)',   tag:'Packages' },
+  'three-card':  { emoji:'🎴', bg:'from-[#2d004a] to-[#1a0028]', glow:'rgba(139,0,255,0.3)',   tag:'3 Players' },
+  slot:          { emoji:'🎰', bg:'from-[#4a0000] to-[#1a0028]', glow:'rgba(255,61,87,0.3)',   tag:'Jackpot' },
 };
 
 export default function GamesPage() {
   const { player, logout, loading, refreshBalance } = useAuth();
   const router = useRouter();
+  const [games, setGames]   = useState<Game[]>([]);
+  const [gLoading, setGL]   = useState(true);
+  const [todayStats, setTS] = useState({ won: 0, bets: 0 });
+  const [showTopUp, setST]  = useState(false);
+  const [packages, setPkgs] = useState<TokenPackage[]>([]);
+  const [toppingUp, setTU]  = useState<string | null>(null);
+  const [topMsg, setTM]     = useState('');
 
-  const [games, setGames] = useState<Game[]>([]);
-  const [gamesLoading, setGamesLoading] = useState(true);
-  const [todayStats, setTodayStats] = useState({ wonToday: 0, totalBets: 0 });
-
-  // Top Up state
-  const [showTopUp, setShowTopUp] = useState(false);
-  const [packages, setPackages] = useState<TokenPackage[]>([]);
-  const [packagesLoading, setPackagesLoading] = useState(false);
-  const [toppingUp, setToppingUp] = useState<string | null>(null);
-  const [topUpSuccess, setTopUpSuccess] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!loading && !player) router.push('/login');
-  }, [player, loading, router]);
-
-  useEffect(() => {
-    gamesApi.list().then(setGames).catch(() => {}).finally(() => setGamesLoading(false));
-  }, []);
-
+  useEffect(() => { if (!loading && !player) router.push('/login'); }, [player, loading, router]);
+  useEffect(() => { gamesApi.list().then(setGames).catch(()=>{}).finally(()=>setGL(false)); }, []);
   useEffect(() => {
     if (!player) return;
-    betsApi.myBets(1).then(data => {
+    betsApi.myBets(1).then(d => {
       const today = new Date().toDateString();
-      const todayBets = data.bets.filter(b => new Date(b.createdAt).toDateString() === today);
-      const wonToday = todayBets.filter(b => b.status === 'WON').reduce((s, b) => s + (b.payout || 0), 0);
-      setTodayStats({ wonToday, totalBets: todayBets.length });
-    }).catch(() => {});
+      const tb = d.bets.filter(b => new Date(b.createdAt).toDateString() === today);
+      setTS({ won: tb.filter(b=>b.status==='WON').reduce((s,b)=>s+(b.payout||0),0), bets: tb.length });
+    }).catch(()=>{});
   }, [player]);
 
-  // Load packages when modal opens
   useEffect(() => {
-    if (!showTopUp || packages.length > 0) return;
-    setPackagesLoading(true);
-    playerApi.getPackages()
-      .then(setPackages)
-      .catch(() => {})
-      .finally(() => setPackagesLoading(false));
+    if (!showTopUp || packages.length) return;
+    playerApi.getPackages().then(setPkgs).catch(()=>{});
   }, [showTopUp, packages.length]);
 
   async function handleTopUp(pkg: TokenPackage) {
-    setToppingUp(pkg.id);
-    setTopUpSuccess(null);
+    setTU(pkg.id); setTM('');
     try {
-      const result = await playerApi.topUp(pkg.id);
+      const r = await playerApi.topUp(pkg.id);
       await refreshBalance();
-      setTopUpSuccess(`+${formatTokens(pkg.baseTokens + pkg.bonusTokens)} tokens added! New balance: 🪙 ${formatTokens(result.balance)}`);
-    } catch {
-      // silent — user can retry
-    } finally {
-      setToppingUp(null);
-    }
+      setTM(`+${formatTokens(pkg.baseTokens + pkg.bonusTokens)} tokens added!`);
+    } catch {}
+    finally { setTU(null); }
   }
 
   if (loading || !player) return null;
 
   return (
-    <div className="min-h-screen" style={{ background: 'radial-gradient(ellipse at top, #1a1f2e 0%, #0d1117 70%)' }}>
+    <div className="min-h-screen" style={{
+      background: 'radial-gradient(ellipse at 50% -5%, #3d0060 0%, #1a0028 35%, #0a0010 100%)',
+    }}>
+
       {/* Top Up Modal */}
       {showTopUp && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg bg-[#1a1f2e] border border-game-border rounded-2xl shadow-2xl overflow-hidden">
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-game-border">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-md dl-card-glow rounded-2xl overflow-hidden bounce-in">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[rgba(61,17,85,0.6)]">
               <div className="flex items-center gap-2">
-                <Coins size={18} className="text-game-gold" />
-                <h2 className="font-black text-white">Demo Top Up</h2>
+                <Coins size={18} className="text-[#ffd700]" />
+                <span className="font-black text-white">Top Up Tokens</span>
+                <span className="dl-badge-purple text-[10px]">DEMO</span>
               </div>
-              <button
-                onClick={() => { setShowTopUp(false); setTopUpSuccess(null); }}
-                className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 transition-colors"
-                aria-label="Close"
-              >
-                <X size={18} />
+              <button onClick={()=>{setST(false);setTM('');}} className="w-8 h-8 rounded-lg bg-[rgba(255,255,255,0.06)] flex items-center justify-center text-[rgba(255,255,255,0.5)] hover:text-white">
+                <X size={16} />
               </button>
             </div>
-
-            {/* Success banner */}
-            {topUpSuccess && (
-              <div className="mx-4 mt-4 px-4 py-3 bg-game-green/10 border border-game-green/30 rounded-xl text-game-green text-sm font-semibold">
-                ✅ {topUpSuccess}
+            {topMsg && (
+              <div className="mx-4 mt-4 px-4 py-3 rounded-xl bg-[rgba(0,230,118,0.1)] border border-[rgba(0,230,118,0.3)] text-[#00e676] text-sm font-bold text-center bounce-in">
+                ✅ {topMsg}
               </div>
             )}
-
-            {/* Packages */}
-            <div className="p-4">
-              <p className="text-xs text-gray-500 mb-4">
-                Demo mode — tokens are credited instantly at no cost.
-              </p>
-
-              {packagesLoading ? (
-                <div className="space-y-3">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="h-16 bg-white/5 rounded-xl animate-pulse" />
-                  ))}
-                </div>
-              ) : packages.length === 0 ? (
-                <p className="text-gray-500 text-center py-6">No packages available.</p>
-              ) : (
-                <div className="space-y-2">
-                  {packages.map((pkg) => (
-                    <button
-                      key={pkg.id}
-                      onClick={() => handleTopUp(pkg)}
-                      disabled={!!toppingUp}
-                      className="w-full flex items-center justify-between bg-game-card hover:bg-game-card/80 border border-game-border hover:border-brand-500/40 rounded-xl px-4 py-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
-                    >
-                      <div className="text-left">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-white">{pkg.name}</span>
-                          {pkg.isPopular && (
-                            <span className="bg-brand-500/20 text-brand-400 text-xs font-bold px-2 py-0.5 rounded-full">Popular</span>
-                          )}
-                          {pkg.isSpecialOffer && (
-                            <span className="bg-game-gold/20 text-game-gold text-xs font-bold px-2 py-0.5 rounded-full">Special</span>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {pkg.baseTokens.toLocaleString()} base
-                          {pkg.bonusTokens > 0 && ` + ${pkg.bonusTokens.toLocaleString()} bonus`}
-                          {' '}tokens
-                        </p>
+            <div className="p-4 space-y-2">
+              {packages.length === 0
+                ? Array.from({length:4}).map((_,i)=><div key={i} className="h-16 dl-skeleton rounded-xl"/>)
+                : packages.map(pkg => (
+                  <button key={pkg.id} onClick={()=>handleTopUp(pkg)} disabled={!!toppingUp}
+                    className="w-full flex items-center justify-between dl-card rounded-xl px-4 py-3 hover:border-[rgba(255,31,166,0.4)] transition-all disabled:opacity-50">
+                    <div className="text-left">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-sm">{pkg.name}</span>
+                        {pkg.isPopular && <span className="dl-badge-pink text-[9px]">POPULAR</span>}
                       </div>
-                      <div className="text-right flex-shrink-0 ml-4">
-                        <p className="font-black text-game-gold">
-                          🪙 {formatTokens(pkg.baseTokens + pkg.bonusTokens)}
-                        </p>
-                        <p className="text-xs text-gray-500">${pkg.priceUsd.toFixed(2)}</p>
-                      </div>
-                      {toppingUp === pkg.id && (
-                        <svg className="animate-spin h-4 w-4 ml-3 text-brand-400 flex-shrink-0" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
+                      <p className="text-xs text-[rgba(255,255,255,0.4)] mt-0.5">
+                        {pkg.baseTokens.toLocaleString()}{pkg.bonusTokens>0?` + ${pkg.bonusTokens} bonus`:''} tokens
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-[#ffd700]">🪙 {formatTokens(pkg.baseTokens+pkg.bonusTokens)}</span>
+                      {toppingUp===pkg.id && <svg className="animate-spin h-4 w-4 text-[#ff1fa6]" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
+                    </div>
+                  </button>
+                ))
+              }
             </div>
           </div>
         </div>
       )}
 
       {/* Header */}
-      <header className="border-b border-game-border bg-game-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <header className="sticky top-0 z-10 border-b border-[rgba(61,17,85,0.6)] bg-[rgba(10,0,16,0.85)] backdrop-blur-md">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">🎮</span>
-            <div>
-              <h1 className="font-black text-lg text-white">GameZone</h1>
-              <p className="text-xs text-gray-400">Welcome back, {player.username}</p>
+            <img src="/assets/logo/dearlive-logo.png" alt="DearLive" className="h-10 drop-shadow-lg" />
+            <div className="hidden sm:block">
+              <div className="text-xs text-[rgba(255,255,255,0.4)]">Welcome,</div>
+              <div className="text-sm font-black text-white leading-tight">{player.username}</div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            {(player.role === 'admin' || player.role === 'super_admin') && (
-              <Link href="/admin" className="flex items-center gap-1.5 text-sm text-brand-400 hover:text-brand-300 border border-brand-500/30 px-3 py-1.5 rounded-lg">
-                <Settings size={14} /> Admin Panel
+
+          <div className="flex items-center gap-2">
+            {(player.role==='admin'||player.role==='super_admin') && (
+              <Link href="/admin" className="flex items-center gap-1.5 text-xs font-bold text-[#ff1fa6] border border-[rgba(255,31,166,0.3)] px-3 py-1.5 rounded-xl hover:bg-[rgba(255,31,166,0.1)] transition-all">
+                <Settings size={13}/> Admin
               </Link>
             )}
-            <div className="bg-game-card border border-game-border rounded-lg px-3 py-1.5 flex items-center gap-2">
-              <span className="text-game-gold font-bold">🪙 {formatTokens(player.balance)}</span>
+            <div className="flex items-center gap-1.5 bg-[rgba(255,215,0,0.08)] border border-[rgba(255,215,0,0.2)] rounded-xl px-3 py-1.5">
+              <span className="text-[#ffd700] text-sm font-black">🪙 {formatTokens(player.balance)}</span>
             </div>
-            {/* Top Up button */}
-            <button
-              onClick={() => setShowTopUp(true)}
-              className="text-xs text-brand-400 border border-brand-500/30 px-2 py-1 rounded-lg hover:bg-brand-500/10 transition-colors"
-            >
+            <button onClick={()=>setST(true)} className="text-xs font-bold text-[rgba(255,255,255,0.6)] border border-[rgba(255,255,255,0.1)] px-2.5 py-1.5 rounded-xl hover:border-[rgba(255,31,166,0.4)] hover:text-white transition-all">
               + Top Up
             </button>
-            {/* Profile avatar */}
-            <Link
-              href="/profile"
-              className="w-8 h-8 rounded-full bg-brand-500/20 border border-brand-500/30 flex items-center justify-center text-brand-400 font-bold text-sm hover:bg-brand-500/30 transition-colors"
-            >
+            <Link href="/profile" className="w-9 h-9 rounded-full bg-gradient-to-br from-[#ff1fa6] to-[#8b00ff] flex items-center justify-center text-white font-black text-sm glow-pink">
               {player.username[0].toUpperCase()}
             </Link>
-            <button
-              onClick={logout}
-              className="p-2 rounded-lg hover:bg-white/10 text-gray-400 transition-colors"
-              aria-label="Logout"
-            >
-              <LogOut size={18} />
+            <button onClick={logout} className="w-9 h-9 rounded-xl bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center text-[rgba(255,255,255,0.4)] hover:text-white transition-all">
+              <LogOut size={16}/>
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-5xl mx-auto px-4 py-6 pb-12">
         {/* Hero */}
-        <div className="text-center mb-10">
-          <h2 className="text-4xl font-black mb-2">Choose Your Game</h2>
-          <p className="text-gray-400">6 exciting games, live rounds, real-time betting</p>
+        <div className="text-center mb-8 pt-2">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Sparkles size={18} className="text-[#ffd700]" />
+            <h2 className="text-3xl sm:text-4xl font-black text-gradient-gold">Choose Your Game</h2>
+            <Sparkles size={18} className="text-[#ffd700]" />
+          </div>
+          <p className="text-[rgba(255,255,255,0.4)] text-sm">6 live games · Real-time betting · Instant payouts</p>
         </div>
 
         {/* Games grid */}
-        {gamesLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-48 bg-game-card rounded-2xl animate-pulse border border-game-border" />
-            ))}
+        {gLoading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {Array.from({length:6}).map((_,i)=><div key={i} className="h-44 dl-skeleton rounded-2xl"/>)}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {games.map((game) => {
-              const meta = GAME_META[game.slug] || { emoji: '🎲', gradient: 'from-gray-600 to-gray-700', description: 'Play and win' };
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {games.map(game => {
+              const m = GAME_META[game.slug] || { emoji:'🎲', bg:'from-[#1a0028] to-[#0a0010]', glow:'rgba(255,31,166,0.2)', tag:'Game' };
               return (
-                <Link
-                  key={game.id}
-                  href={`/games/${game.slug}`}
-                  className="group relative rounded-2xl overflow-hidden border border-game-border hover:border-brand-500/50 transition-all hover:scale-[1.02] hover:shadow-xl hover:shadow-brand-500/10 active:scale-[0.98]"
-                >
-                  <div className={`bg-gradient-to-br ${meta.gradient} p-6 h-full min-h-[160px] flex flex-col justify-between`}>
-                    <div>
-                      <div className="text-5xl mb-3 group-hover:scale-110 transition-transform">{meta.emoji}</div>
-                      <h3 className="text-xl font-black text-white">{game.name}</h3>
-                      <p className="text-white/70 text-sm mt-1">{meta.description}</p>
+                <Link key={game.id} href={`/games/${game.slug}`}
+                  className="group relative rounded-2xl overflow-hidden border border-[rgba(61,17,85,0.6)] hover:border-[rgba(255,31,166,0.4)] transition-all active:scale-95"
+                  style={{ boxShadow: `0 4px 20px ${m.glow}` }}>
+                  <div className={`bg-gradient-to-b ${m.bg} p-5 h-full min-h-[160px] flex flex-col justify-between`}>
+                    {/* Glow bg */}
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      style={{ background: `radial-gradient(circle at 50% 50%, ${m.glow}, transparent 70%)` }} />
+                    <div className="relative">
+                      <div className="text-5xl mb-2 group-hover:scale-110 transition-transform drop-shadow-lg">{m.emoji}</div>
+                      <div className="text-base font-black text-white leading-tight">{game.name}</div>
+                      <div className="text-[10px] text-[rgba(255,255,255,0.4)] mt-0.5 font-semibold uppercase tracking-wide">{m.tag}</div>
                     </div>
-                    <div className="flex items-center justify-between mt-4">
-                      <span className="text-white/60 text-xs">
-                        {game.options.length} options
-                      </span>
-                      <span className="bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full group-hover:bg-white/30 transition-colors">
-                        Play Now →
-                      </span>
+                    <div className="relative flex items-center justify-between mt-3">
+                      <span className="text-[10px] text-[rgba(255,255,255,0.3)]">{game.options.length} options</span>
+                      <span className="dl-badge-pink text-[9px]">LIVE</span>
                     </div>
                   </div>
                 </Link>
@@ -252,16 +183,25 @@ export default function GamesPage() {
           </div>
         )}
 
-        {/* Today's stats */}
-        <div className="mt-8 p-4 bg-game-card border border-game-border rounded-2xl">
-          <div className="flex items-center gap-2 mb-3">
-            <Trophy size={18} className="text-game-gold" />
-            <h3 className="font-bold">Your Stats Today</h3>
+        {/* Stats */}
+        <div className="mt-6 dl-card rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Crown size={16} className="text-[#ffd700]"/>
+            <span className="font-black text-white text-sm">Today&apos;s Stats</span>
           </div>
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div><p className="text-2xl font-black text-game-gold">{formatTokens(player.balance)}</p><p className="text-xs text-gray-400">Balance</p></div>
-            <div><p className="text-2xl font-black text-game-green">{formatTokens(todayStats.wonToday)}</p><p className="text-xs text-gray-400">Won Today</p></div>
-            <div><p className="text-2xl font-black text-brand-400">{todayStats.totalBets}</p><p className="text-xs text-gray-400">Bets Today</p></div>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <div className="text-xl font-black text-[#ffd700]">🪙 {formatTokens(player.balance)}</div>
+              <div className="text-[10px] text-[rgba(255,255,255,0.4)] mt-0.5 uppercase tracking-wide">Balance</div>
+            </div>
+            <div>
+              <div className="text-xl font-black text-[#00e676]">{formatTokens(todayStats.won)}</div>
+              <div className="text-[10px] text-[rgba(255,255,255,0.4)] mt-0.5 uppercase tracking-wide">Won Today</div>
+            </div>
+            <div>
+              <div className="text-xl font-black text-[#ff1fa6]">{todayStats.bets}</div>
+              <div className="text-[10px] text-[rgba(255,255,255,0.4)] mt-0.5 uppercase tracking-wide">Bets Today</div>
+            </div>
           </div>
         </div>
       </main>

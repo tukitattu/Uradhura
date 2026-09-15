@@ -63,7 +63,7 @@ export default function TokenPackagesPage() {
         <div className="xl:col-span-2 space-y-3">
           {loading ? (
             Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-20 bg-game-card rounded-xl animate-pulse border border-game-border" />
+              <div key={i} className="h-20 bg-[#1a0028] rounded-xl animate-pulse border border-[rgba(61,17,85,0.6)]" />
             ))
           ) : packages.map(pkg => (
             <Card key={pkg.id} className={cn(!pkg.isActive && 'opacity-50')}>
@@ -78,7 +78,7 @@ export default function TokenPackagesPage() {
                   </div>
                   <div className="text-sm text-gray-300">
                     {pkg.baseTokens.toLocaleString()} tokens
-                    {pkg.bonusTokens > 0 && <span className="text-game-green"> +{pkg.bonusTokens} bonus</span>}
+                    {pkg.bonusTokens > 0 && <span className="text-[#00e676]"> +{pkg.bonusTokens} bonus</span>}
                     · ${pkg.priceUsd.toFixed(2)} · {pkg.expiryDays}d
                   </div>
                 </div>
@@ -86,7 +86,7 @@ export default function TokenPackagesPage() {
                   <Button onClick={() => setEditing({ ...pkg })} variant="ghost" size="sm">
                     <Edit size={14} />
                   </Button>
-                  <Button onClick={() => handleDelete(pkg.id)} variant="ghost" size="sm" className="text-game-red hover:text-game-red">
+                  <Button onClick={() => handleDelete(pkg.id)} variant="ghost" size="sm" className="text-[#ff3d57] hover:text-[#ff3d57]">
                     <Trash2 size={14} />
                   </Button>
                 </div>
@@ -103,7 +103,7 @@ export default function TokenPackagesPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Package size={16} className="text-game-gold" />
+              <Package size={16} className="text-[#ffd700]" />
               <h2 className="font-bold text-white">{editing.id ? 'Edit Package' : 'New Package'}</h2>
             </div>
           </CardHeader>
@@ -133,14 +133,14 @@ export default function TokenPackagesPage() {
             </div>
 
             {editing.name && editing.priceUsd && (
-              <div className="bg-game-bg rounded-xl p-4 text-center border border-game-border">
+              <div className="bg-[#0a0010] rounded-xl p-4 text-center border border-[rgba(61,17,85,0.6)]">
                 <div className="text-3xl mb-1">🪙</div>
                 <div className="font-black text-white">{editing.name}</div>
-                <div className="text-2xl font-black text-game-gold">{(editing.baseTokens || 0).toLocaleString()}</div>
+                <div className="text-2xl font-black text-[#ffd700]">{(editing.baseTokens || 0).toLocaleString()}</div>
                 {(editing.bonusTokens || 0) > 0 && (
-                  <div className="text-game-green">+{editing.bonusTokens} bonus</div>
+                  <div className="text-[#00e676]">+{editing.bonusTokens} bonus</div>
                 )}
-                <div className="text-game-gold mt-1">${(editing.priceUsd || 0).toFixed(2)}</div>
+                <div className="text-[#ffd700] mt-1">${(editing.priceUsd || 0).toFixed(2)}</div>
               </div>
             )}
 

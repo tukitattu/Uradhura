@@ -105,7 +105,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen" style={{ background: 'radial-gradient(ellipse at top, #1a1f2e 0%, #0d1117 70%)' }}>
       {/* Header bar */}
-      <header className="border-b border-game-border bg-game-card/50 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-[rgba(61,17,85,0.6)] bg-[#1a0028]/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
           <Link
             href="/games"
@@ -123,7 +123,7 @@ export default function ProfilePage() {
         <Card variant="glow">
           <CardBody className="flex flex-col sm:flex-row items-center sm:items-start gap-5 p-6">
             {/* Avatar */}
-            <div className="w-20 h-20 rounded-full bg-brand-500/20 border-2 border-brand-500/50 flex items-center justify-center text-3xl font-black text-brand-400 flex-shrink-0">
+            <div className="w-20 h-20 rounded-full bg-[rgba(255,31,166,0.15)] border-2 border-brand-500/50 flex items-center justify-center text-3xl font-black text-[#ff1fa6] flex-shrink-0">
               {player.username[0].toUpperCase()}
             </div>
 
@@ -137,8 +137,8 @@ export default function ProfilePage() {
               </div>
               <p className="text-gray-400 text-sm mb-3">{player.email}</p>
               {/* Balance */}
-              <div className="inline-flex items-center gap-2 bg-game-card border border-game-border rounded-xl px-4 py-2">
-                <span className="text-game-gold text-2xl font-black">
+              <div className="inline-flex items-center gap-2 bg-[#1a0028] border border-[rgba(61,17,85,0.6)] rounded-xl px-4 py-2">
+                <span className="text-[#ffd700] text-2xl font-black">
                   🪙 {formatTokens(player.balance)}
                 </span>
                 <span className="text-gray-500 text-sm">tokens</span>
@@ -152,9 +152,9 @@ export default function ProfilePage() {
           {/* Total Won */}
           <Card>
             <CardBody className="flex flex-col items-center text-center p-4">
-              <Trophy size={20} className="text-game-gold mb-2" />
+              <Trophy size={20} className="text-[#ffd700] mb-2" />
               <p className="text-xs text-gray-400 mb-1">Total Won</p>
-              <p className="text-xl font-black text-game-green">
+              <p className="text-xl font-black text-[#00e676]">
                 🪙 {formatTokens(wonBets.reduce((s, b) => s + (b.payout ?? 0), 0))}
               </p>
             </CardBody>
@@ -163,7 +163,7 @@ export default function ProfilePage() {
           {/* Total Bets */}
           <Card>
             <CardBody className="flex flex-col items-center text-center p-4">
-              <Coins size={20} className="text-brand-400 mb-2" />
+              <Coins size={20} className="text-[#ff1fa6] mb-2" />
               <p className="text-xs text-gray-400 mb-1">Total Bets</p>
               <p className="text-xl font-black text-white">{betsTotal}</p>
             </CardBody>
@@ -172,9 +172,9 @@ export default function ProfilePage() {
           {/* Biggest Win */}
           <Card>
             <CardBody className="flex flex-col items-center text-center p-4">
-              <TrendingUp size={20} className="text-game-green mb-2" />
+              <TrendingUp size={20} className="text-[#00e676] mb-2" />
               <p className="text-xs text-gray-400 mb-1">Biggest Win</p>
-              <p className="text-xl font-black text-game-gold">
+              <p className="text-xl font-black text-[#ffd700]">
                 {biggestWin > 0 ? `🪙 ${formatTokens(biggestWin)}` : '—'}
               </p>
             </CardBody>
@@ -183,7 +183,7 @@ export default function ProfilePage() {
           {/* Win Rate */}
           <Card>
             <CardBody className="flex flex-col items-center text-center p-4">
-              <TrendingDown size={20} className="text-brand-400 mb-2" />
+              <TrendingDown size={20} className="text-[#ff1fa6] mb-2" />
               <p className="text-xs text-gray-400 mb-1">Win Rate</p>
               <p className="text-xl font-black text-white">{winRate}%</p>
             </CardBody>
@@ -214,7 +214,7 @@ export default function ProfilePage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-xs text-gray-500 uppercase border-b border-game-border">
+                    <tr className="text-xs text-gray-500 uppercase border-b border-[rgba(61,17,85,0.6)]">
                       <th className="px-4 py-2 text-left">Game</th>
                       <th className="px-4 py-2 text-left">Option</th>
                       <th className="px-4 py-2 text-right">Stake</th>
@@ -246,9 +246,9 @@ export default function ProfilePage() {
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono">
                           {bet.status === 'WON' ? (
-                            <span className="text-game-green">+{formatTokens(bet.payout ?? 0)}</span>
+                            <span className="text-[#00e676]">+{formatTokens(bet.payout ?? 0)}</span>
                           ) : bet.status === 'LOST' ? (
-                            <span className="text-game-red">-{formatTokens(bet.amount)}</span>
+                            <span className="text-[#ff3d57]">-{formatTokens(bet.amount)}</span>
                           ) : (
                             <span className="text-gray-500">—</span>
                           )}
@@ -267,7 +267,7 @@ export default function ProfilePage() {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <CardBody className="border-t border-game-border flex items-center justify-between">
+                <CardBody className="border-t border-[rgba(61,17,85,0.6)] flex items-center justify-between">
                   <span className="text-xs text-gray-500">
                     Page {betsPage} of {totalPages} · {betsTotal} bets
                   </span>
@@ -329,7 +329,7 @@ export default function ProfilePage() {
                   <div className="text-right flex-shrink-0 ml-4">
                     <p
                       className={`font-mono font-bold text-sm ${
-                        tx.type === 'credit' ? 'text-game-green' : tx.type === 'debit' ? 'text-game-red' : 'text-gray-400'
+                        tx.type === 'credit' ? 'text-[#00e676]' : tx.type === 'debit' ? 'text-[#ff3d57]' : 'text-gray-400'
                       }`}
                     >
                       {tx.type === 'credit' ? '+' : tx.type === 'debit' ? '-' : ''}

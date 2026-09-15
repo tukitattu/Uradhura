@@ -2,71 +2,328 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── DearLive Design Tokens ──────────────────────────────────────────────── */
 :root {
-  --bg: #0d1117;
-  --card: #161b22;
-  --border: #30363d;
+  --dl-bg:      #0a0010;
+  --dl-surface: #12001e;
+  --dl-card:    #1a0028;
+  --dl-border:  #3d1155;
+  --dl-pink:    #ff1fa6;
+  --dl-gold:    #ffd700;
+  --dl-purple:  #8b00ff;
+  --dl-teal:    #00d4ff;
 }
+
+/* ─── Base ────────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+
+html { overflow-x: hidden; }
 
 body {
-  background-color: var(--bg);
-  color: white;
+  background-color: var(--dl-bg);
+  color: #fff;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #484f58; }
+/* ─── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--dl-bg); }
+::-webkit-scrollbar-thumb { background: var(--dl-border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--dl-pink); }
 
-/* Wheel animations */
-@keyframes wheelSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(1800deg); }
+/* ─── Typography ──────────────────────────────────────────────────────────── */
+.text-gradient-gold {
+  background: linear-gradient(135deg, #ffd700 0%, #ffaa00 50%, #ffd700 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% auto;
+}
+.text-gradient-pink {
+  background: linear-gradient(135deg, #ff1fa6 0%, #e000c0 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.text-gradient-rainbow {
+  background: linear-gradient(135deg, #ffd700 0%, #ff1fa6 40%, #8b00ff 80%, #00d4ff 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% auto;
+  animation: shimmer 3s linear infinite;
 }
 
-@keyframes resultPop {
-  0% { transform: scale(0) rotate(-10deg); opacity: 0; }
-  60% { transform: scale(1.1) rotate(5deg); opacity: 1; }
-  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+/* ─── Glow utilities ──────────────────────────────────────────────────────── */
+.glow-pink   { box-shadow: 0 0 20px rgba(255,31,166,0.5), 0 0 40px rgba(255,31,166,0.15); }
+.glow-gold   { box-shadow: 0 0 20px rgba(255,215,0,0.5),  0 0 40px rgba(255,215,0,0.15); }
+.glow-purple { box-shadow: 0 0 20px rgba(139,0,255,0.5),  0 0 40px rgba(139,0,255,0.15); }
+.glow-teal   { box-shadow: 0 0 20px rgba(0,212,255,0.4); }
+.text-glow-pink   { text-shadow: 0 0 10px rgba(255,31,166,0.8), 0 0 20px rgba(255,31,166,0.4); }
+.text-glow-gold   { text-shadow: 0 0 10px rgba(255,215,0,0.8),  0 0 20px rgba(255,215,0,0.4); }
+
+/* ─── Cards ───────────────────────────────────────────────────────────────── */
+.dl-card {
+  background: linear-gradient(135deg, #1a0028 0%, #0f0018 100%);
+  border: 1px solid rgba(61,17,85,0.8);
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.dl-card-glow {
+  background: linear-gradient(135deg, #1a0028 0%, #0f0018 100%);
+  border: 1px solid rgba(255,31,166,0.3);
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.6), 0 0 20px rgba(255,31,166,0.1);
+}
+.dl-card-gold {
+  background: linear-gradient(135deg, #1a0028 0%, #0f0018 100%);
+  border: 1px solid rgba(255,215,0,0.3);
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.6), 0 0 20px rgba(255,215,0,0.1);
 }
 
+/* ─── Buttons ─────────────────────────────────────────────────────────────── */
+.dl-btn-pink {
+  background: linear-gradient(135deg, #ff1fa6 0%, #e000c0 100%);
+  border: none;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 12px;
+  transition: all 0.2s;
+  box-shadow: 0 4px 15px rgba(255,31,166,0.4);
+}
+.dl-btn-pink:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(255,31,166,0.6);
+}
+.dl-btn-pink:active:not(:disabled) { transform: translateY(0); }
+
+.dl-btn-gold {
+  background: linear-gradient(135deg, #ffd700 0%, #ff8c00 50%, #ffd700 100%);
+  background-size: 200% auto;
+  border: none;
+  color: #1a0028;
+  font-weight: 800;
+  border-radius: 12px;
+  transition: all 0.2s;
+  box-shadow: 0 4px 15px rgba(255,215,0,0.4);
+  animation: shimmer 3s linear infinite;
+}
+.dl-btn-gold:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(255,215,0,0.6);
+}
+
+.dl-btn-ghost {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #fff;
+  font-weight: 600;
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+.dl-btn-ghost:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+
+.dl-btn-danger {
+  background: linear-gradient(135deg, #ff3d57 0%, #cc0020 100%);
+  border: none;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(255,61,87,0.4);
+}
+
+/* ─── Inputs ──────────────────────────────────────────────────────────────── */
+.dl-input {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(61,17,85,0.8);
+  border-radius: 12px;
+  color: #fff;
+  padding: 10px 14px;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
+.dl-input:focus {
+  outline: none;
+  border-color: rgba(255,31,166,0.6);
+  box-shadow: 0 0 0 3px rgba(255,31,166,0.1);
+}
+.dl-input::placeholder { color: rgba(255,255,255,0.3); }
+
+/* ─── Chip / Denomination button ──────────────────────────────────────────── */
+.dl-chip {
+  background: linear-gradient(135deg, #1a0028, #220033);
+  border: 1px solid rgba(61,17,85,0.8);
+  border-radius: 10px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.dl-chip:hover  { border-color: rgba(255,31,166,0.5); }
+.dl-chip.active {
+  background: linear-gradient(135deg, #ff1fa6, #e000c0);
+  border-color: #ff1fa6;
+  box-shadow: 0 0 12px rgba(255,31,166,0.5);
+  color: #fff;
+}
+
+/* ─── Badge ───────────────────────────────────────────────────────────────── */
+.dl-badge-pink   { background: rgba(255,31,166,0.2); color: #ff1fa6; border: 1px solid rgba(255,31,166,0.3); border-radius: 20px; padding: 2px 10px; font-size: 11px; font-weight: 700; }
+.dl-badge-gold   { background: rgba(255,215,0,0.2);  color: #ffd700; border: 1px solid rgba(255,215,0,0.3);  border-radius: 20px; padding: 2px 10px; font-size: 11px; font-weight: 700; }
+.dl-badge-green  { background: rgba(0,230,118,0.2);  color: #00e676; border: 1px solid rgba(0,230,118,0.3);  border-radius: 20px; padding: 2px 10px; font-size: 11px; font-weight: 700; }
+.dl-badge-red    { background: rgba(255,61,87,0.2);   color: #ff3d57; border: 1px solid rgba(255,61,87,0.3);   border-radius: 20px; padding: 2px 10px; font-size: 11px; font-weight: 700; }
+.dl-badge-purple { background: rgba(139,0,255,0.2);  color: #bf5fff; border: 1px solid rgba(139,0,255,0.3);  border-radius: 20px; padding: 2px 10px; font-size: 11px; font-weight: 700; }
+.dl-badge-blue   { background: rgba(0,102,255,0.2);  color: #4d94ff; border: 1px solid rgba(0,102,255,0.3);  border-radius: 20px; padding: 2px 10px; font-size: 11px; font-weight: 700; }
+.dl-badge-gray   { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 2px 10px; font-size: 11px; font-weight: 700; }
+
+/* ─── Betting option button ───────────────────────────────────────────────── */
+.bet-option {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 12px;
+  border: 2px solid transparent;
+  background: rgba(26,0,40,0.85);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+  min-width: 52px;
+}
+.bet-option:hover { border-color: rgba(255,31,166,0.6); transform: translate(-50%, -50%) scale(1.08); }
+.bet-option.selected {
+  background: linear-gradient(135deg, rgba(255,31,166,0.3), rgba(224,0,192,0.3));
+  border-color: #ff1fa6;
+  box-shadow: 0 0 16px rgba(255,31,166,0.6);
+  transform: translate(-50%, -50%) scale(1.1);
+}
+.bet-option.winner {
+  background: linear-gradient(135deg, rgba(255,215,0,0.4), rgba(255,140,0,0.4));
+  border-color: #ffd700;
+  box-shadow: 0 0 24px rgba(255,215,0,0.8);
+  transform: translate(-50%, -50%) scale(1.2);
+  animation: winnerPop 0.6s cubic-bezier(0.175,0.885,0.32,1.275) forwards;
+}
+.bet-option.disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ─── Round status banner ─────────────────────────────────────────────────── */
+.status-betting  { background: linear-gradient(90deg, rgba(0,230,118,0.12), rgba(0,230,118,0.04)); border: 1px solid rgba(0,230,118,0.25); color: #00e676; }
+.status-closed   { background: linear-gradient(90deg, rgba(255,170,0,0.12), rgba(255,170,0,0.04)); border: 1px solid rgba(255,170,0,0.25); color: #ffaa00; }
+.status-processing { background: linear-gradient(90deg, rgba(139,0,255,0.12), rgba(139,0,255,0.04)); border: 1px solid rgba(139,0,255,0.25); color: #bf5fff; }
+.status-settled  { background: linear-gradient(90deg, rgba(255,215,0,0.12), rgba(255,215,0,0.04)); border: 1px solid rgba(255,215,0,0.25); color: #ffd700; }
+
+/* ─── Countdown timer ─────────────────────────────────────────────────────── */
+.countdown-open  { background: rgba(0,230,118,0.08); border: 1px solid rgba(0,230,118,0.2); }
+.countdown-urgent { background: rgba(255,61,87,0.1); border: 1px solid rgba(255,61,87,0.4); animation: pulsePink 0.8s ease-in-out infinite; }
+
+/* ─── Result pop animation ────────────────────────────────────────────────── */
+.result-pop  { animation: winnerPop 0.6s cubic-bezier(0.175,0.885,0.32,1.275) forwards; }
+.slide-up    { animation: slideUp 0.3s ease-out forwards; }
+.fade-in     { animation: fadeIn 0.3s ease-out forwards; }
+.bounce-in   { animation: bounceIn 0.5s cubic-bezier(0.175,0.885,0.32,1.275) forwards; }
+
+/* ─── Particle sparkle dots ───────────────────────────────────────────────── */
+.sparkle-dot {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: sparkle 1.5s ease-in-out infinite;
+}
+
+/* ─── Card flip ───────────────────────────────────────────────────────────── */
 @keyframes cardFlip {
-  0% { transform: perspective(400px) rotateY(90deg); }
-  100% { transform: perspective(400px) rotateY(0deg); }
+  0%   { transform: perspective(400px) rotateY(90deg); opacity: 0; }
+  100% { transform: perspective(400px) rotateY(0deg);  opacity: 1; }
 }
-
-@keyframes reelSpin {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(-200%); }
-}
-
-.result-pop { animation: resultPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-.card-flip { animation: cardFlip 0.4s ease-out forwards; }
-
-@keyframes bounceIn {
-  0% { transform: scale(0.3); opacity: 0; }
-  50% { transform: scale(1.05); opacity: 0.8; }
-  100% { transform: scale(1); opacity: 1; }
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.animate-bounce-in { animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-.animate-fade-in { animation: fadeIn 0.25s ease-out forwards; }
-
-@keyframes livePing {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.4); opacity: 0.6; }
-}
-.live-ping { animation: livePing 1.5s ease-in-out infinite; }
-
-/* Card reveal animations with staggered delays */
-.card-reveal-0 { animation: cardFlip 0.4s ease-out 0s both; }
+.card-reveal-0 { animation: cardFlip 0.4s ease-out 0s   both; }
 .card-reveal-1 { animation: cardFlip 0.4s ease-out 0.1s both; }
 .card-reveal-2 { animation: cardFlip 0.4s ease-out 0.2s both; }
 
-/* Admin dark sidebar */
-.admin-sidebar { min-height: 100vh; background: #0d1117; border-right: 1px solid #30363d; }
+/* ─── Admin sidebar ───────────────────────────────────────────────────────── */
+.dl-sidebar {
+  background: linear-gradient(180deg, #0f0018 0%, #0a0010 100%);
+  border-right: 1px solid rgba(61,17,85,0.6);
+  min-height: 100vh;
+}
+
+/* ─── Divider ─────────────────────────────────────────────────────────────── */
+.dl-divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(61,17,85,0.8), transparent); }
+
+/* ─── Shimmer loading skeleton ────────────────────────────────────────────── */
+.dl-skeleton {
+  background: linear-gradient(90deg, rgba(61,17,85,0.3) 25%, rgba(61,17,85,0.5) 50%, rgba(61,17,85,0.3) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s linear infinite;
+  border-radius: 8px;
+}
+
+/* ─── Table ───────────────────────────────────────────────────────────────── */
+.dl-table thead tr { border-bottom: 1px solid rgba(61,17,85,0.8); }
+.dl-table thead th { color: rgba(255,255,255,0.4); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 10px 16px; text-align: left; }
+.dl-table tbody tr { border-bottom: 1px solid rgba(61,17,85,0.3); transition: background 0.15s; }
+.dl-table tbody tr:hover { background: rgba(255,31,166,0.04); }
+.dl-table tbody td { padding: 10px 16px; font-size: 13px; }
+
+/* ─── Toggle switch ───────────────────────────────────────────────────────── */
+.dl-toggle {
+  position: relative;
+  width: 40px; height: 22px;
+  border-radius: 11px;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.dl-toggle.on  { background: linear-gradient(135deg, #ff1fa6, #e000c0); }
+.dl-toggle.off { background: rgba(255,255,255,0.12); }
+.dl-toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  width: 16px; height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.dl-toggle.on::after  { transform: translateX(21px); }
+.dl-toggle.off::after { transform: translateX(3px); }
+
+/* ─── Select ──────────────────────────────────────────────────────────────── */
+.dl-select {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(61,17,85,0.8);
+  border-radius: 12px;
+  color: #fff;
+  padding: 10px 14px;
+  font-size: 14px;
+  appearance: none;
+  cursor: pointer;
+}
+.dl-select:focus { outline: none; border-color: rgba(255,31,166,0.5); }
+.dl-select option { background: #1a0028; color: #fff; }
+
+/* ─── Wheel animation ─────────────────────────────────────────────────────── */
+@keyframes wheelSpin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(1800deg); }
+}
+.wheel-spinning { animation: wheelSpin 4s cubic-bezier(0.2, 0.8, 0.4, 1) forwards; }
+
+/* ─── Shimmer keyframe (used by multiple) ─────────────────────────────────── */
+@keyframes shimmer       { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+@keyframes pulsePink     { 0%,100% { box-shadow: 0 0 10px rgba(255,31,166,0.3); } 50% { box-shadow: 0 0 30px rgba(255,31,166,0.8); } }
+@keyframes pulseGold     { 0%,100% { box-shadow: 0 0 10px rgba(255,215,0,0.3); }  50% { box-shadow: 0 0 30px rgba(255,215,0,0.8); } }
+@keyframes float         { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes winnerPop     { 0% { transform: scale(0) rotate(-10deg); opacity: 0; } 60% { transform: scale(1.15) rotate(3deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+@keyframes slideUp       { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes fadeIn        { from { opacity: 0; } to { opacity: 1; } }
+@keyframes bounceIn      { 0% { transform: scale(0.3); opacity: 0; } 50% { transform: scale(1.05); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes sparkle       { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.4; transform:scale(0.7); } }
+@keyframes heartBeat     { 0%,100% { transform:scale(1); } 14% { transform:scale(1.15); } 28% { transform:scale(1); } 42% { transform:scale(1.1); } 70% { transform:scale(1); } }
+@keyframes livePing      { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.4); opacity:0.5; } }

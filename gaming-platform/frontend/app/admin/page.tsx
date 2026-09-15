@@ -173,13 +173,13 @@ export default function AdminDashboard() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <TrendingUp size={20} className="text-brand-400" />
+                <TrendingUp size={20} className="text-[#ff1fa6]" />
                 <div>
                   <h2 className="font-black text-white">Profit &amp; Risk Engine</h2>
                   <p className="text-xs text-gray-400">Configure global risk and profit parameters for all games</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 text-xs text-game-green font-bold bg-game-green/10 border border-game-green/20 px-2 py-1 rounded-full">
+              <span className="flex items-center gap-1.5 text-xs text-[#00e676] font-bold bg-game-green/10 border border-game-green/20 px-2 py-1 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-game-green" /> Engine Active
               </span>
             </div>
@@ -211,7 +211,7 @@ export default function AdminDashboard() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <TrendingUp size={20} className="text-game-green" />
+                <TrendingUp size={20} className="text-[#00e676]" />
                 <div>
                   <h2 className="font-black text-white">Scenario Result <span className="text-gray-400 font-normal">(Simulation)</span></h2>
                   {simulation && <p className="text-xs text-gray-400">Last run: {new Date(simulation.simulatedAt ?? Date.now()).toLocaleString()}</p>}
@@ -225,7 +225,7 @@ export default function AdminDashboard() {
                 <div className="bg-game-green/10 border border-game-green/20 rounded-lg p-3 flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-game-green/20 flex items-center justify-center">✓</div>
                   <div>
-                    <div className="text-sm font-bold text-game-green">Simulation Completed</div>
+                    <div className="text-sm font-bold text-[#00e676]">Simulation Completed</div>
                     <div className="text-xs text-gray-400">Based on current configuration and {simulation.simulatedRounds.toLocaleString()} simulated rounds</div>
                   </div>
                 </div>
@@ -233,11 +233,11 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     { label: 'Expected Profit', value: `$ ${formatTokens(simulation.expectedProfit)}`, color: 'text-white' },
-                    { label: 'ROI', value: `${simulation.roi.toFixed(1)}%`, color: 'text-brand-400' },
-                    { label: 'Max Exposure', value: `$ ${formatTokens(simulation.maxExposure)}`, color: 'text-game-red' },
+                    { label: 'ROI', value: `${simulation.roi.toFixed(1)}%`, color: 'text-[#ff1fa6]' },
+                    { label: 'Max Exposure', value: `$ ${formatTokens(simulation.maxExposure)}`, color: 'text-[#ff3d57]' },
                     { label: 'Risk Level', value: simulation.riskLevel, color: `text-[${riskColor}]` },
                   ].map(({ label, value, color }) => (
-                    <div key={label} className="bg-game-bg rounded-lg p-3">
+                    <div key={label} className="bg-[#0a0010] rounded-lg p-3">
                       <p className="text-xs text-gray-400">{label}</p>
                       <p className={cn('text-xl font-black', color)} style={{ color: label === 'Risk Level' ? riskColor : undefined }}>{value}</p>
                     </div>
@@ -274,7 +274,7 @@ export default function AdminDashboard() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center">👤</div>
+              <div className="w-8 h-8 rounded-full bg-[#ff1fa6]/20 flex items-center justify-center">👤</div>
               <div>
                 <h2 className="font-black text-white">Player-Specific Override</h2>
                 <p className="text-xs text-gray-400">Apply custom settings for individual players</p>
@@ -297,11 +297,11 @@ export default function AdminDashboard() {
             </div>
 
             {/* Player info or placeholder */}
-            <div className="border border-game-border rounded-xl p-4">
+            <div className="border border-[rgba(61,17,85,0.6)] rounded-xl p-4">
               {searchedPlayer ? (
                 <div>
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-400 font-bold">
+                    <div className="w-10 h-10 rounded-full bg-[#ff1fa6]/20 flex items-center justify-center text-[#ff1fa6] font-bold">
                       {searchedPlayer.username[0]}
                     </div>
                     <div>
@@ -340,7 +340,7 @@ export default function AdminDashboard() {
                 <label className="block text-xs text-gray-400 mb-1">Add / Remove Tokens</label>
                 <div className="flex gap-2">
                   <select value={adjustType} onChange={e => setAdjustType(e.target.value as 'Add' | 'Remove')}
-                    className="bg-game-bg border border-game-border rounded-lg px-2 py-2 text-sm text-white focus:outline-none">
+                    className="bg-[#0a0010] border border-[rgba(61,17,85,0.6)] rounded-lg px-2 py-2 text-sm text-white focus:outline-none">
                     <option>Add</option>
                     <option>Remove</option>
                   </select>
@@ -367,7 +367,7 @@ export default function AdminDashboard() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-brand-500/20 rounded-lg flex items-center justify-center">⚙️</div>
+              <div className="w-8 h-8 bg-[#ff1fa6]/20 rounded-lg flex items-center justify-center">⚙️</div>
               <div>
                 <h2 className="font-black text-white">Admin Control Room</h2>
                 <p className="text-xs text-gray-400">Manage core configuration areas</p>
@@ -376,14 +376,14 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardBody className="grid grid-cols-2 gap-3">
             {[
-              { icon: <Shield size={24} className="text-brand-400" />, title: 'Manage Profit & Risk Rules', desc: 'Configure global and game-specific profit & risk parameters', href: '/admin/profit-risk' },
-              { icon: <Package size={24} className="text-game-gold" />, title: 'Manage Token Packages', desc: 'Create, edit and manage token packages for store', href: '/admin/token-packages' },
+              { icon: <Shield size={24} className="text-[#ff1fa6]" />, title: 'Manage Profit & Risk Rules', desc: 'Configure global and game-specific profit & risk parameters', href: '/admin/profit-risk' },
+              { icon: <Package size={24} className="text-[#ffd700]" />, title: 'Manage Token Packages', desc: 'Create, edit and manage token packages for store', href: '/admin/token-packages' },
             ].map(({ icon, title, desc, href }) => (
-              <a key={href} href={href} className="flex flex-col p-4 bg-game-bg rounded-xl border border-game-border hover:border-brand-500/50 transition-all group">
+              <a key={href} href={href} className="flex flex-col p-4 bg-[#0a0010] rounded-xl border border-[rgba(61,17,85,0.6)] hover:border-[rgba(255,31,166,0.5)]/50 transition-all group">
                 <div className="mb-3">{icon}</div>
                 <div className="font-bold text-sm text-white mb-1">{title}</div>
                 <div className="text-xs text-gray-400 flex-1">{desc}</div>
-                <div className="mt-3 text-brand-400 text-xs flex items-center gap-1 group-hover:gap-2 transition-all">
+                <div className="mt-3 text-[#ff1fa6] text-xs flex items-center gap-1 group-hover:gap-2 transition-all">
                   Manage <ChevronRight size={12} />
                 </div>
               </a>
@@ -455,7 +455,7 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardBody className="flex flex-col items-center gap-4">
             {/* Store card preview */}
-            <div className="relative w-56 rounded-2xl overflow-hidden border-2 border-game-border"
+            <div className="relative w-56 rounded-2xl overflow-hidden border-2 border-[rgba(61,17,85,0.6)]"
               style={{ background: 'linear-gradient(135deg, #1a1f3e 0%, #2d1b69 100%)' }}>
               {pkgData.isPopular && (
                 <div className="absolute top-3 left-3 bg-game-red text-white text-xs font-black px-2 py-0.5 rounded">POPULAR</div>
@@ -464,17 +464,17 @@ export default function AdminDashboard() {
                 <div className="text-5xl mb-3">🪙</div>
                 <div className="text-xl font-black text-white mb-2">{pkgData.name}</div>
                 <div className="flex items-end justify-center gap-2 mb-1">
-                  <span className="text-4xl font-black text-game-gold">{pkgData.baseTokens.toLocaleString()}</span>
+                  <span className="text-4xl font-black text-[#ffd700]">{pkgData.baseTokens.toLocaleString()}</span>
                   <span className="text-sm text-gray-400 mb-1">Tokens</span>
                   {pkgData.bonusTokens > 0 && (
                     <>
                       <span className="text-2xl text-gray-400">+</span>
-                      <span className="text-3xl font-black text-game-green">{pkgData.bonusTokens}</span>
+                      <span className="text-3xl font-black text-[#00e676]">{pkgData.bonusTokens}</span>
                       <span className="text-sm text-gray-400 mb-1">Tokens</span>
                     </>
                   )}
                 </div>
-                <button className="w-full bg-brand-500 text-white font-bold py-2 rounded-xl mt-2">
+                <button className="w-full bg-[#ff1fa6] text-white font-bold py-2 rounded-xl mt-2">
                   $ {pkgData.priceUsd.toFixed(2)}
                 </button>
                 <div className="text-xs text-gray-500 mt-2">⏱ Valid for {pkgData.expiryDays} days</div>
@@ -493,7 +493,7 @@ export default function AdminDashboard() {
                   pkgData.isActive && 'Visible in Store',
                 ].filter(Boolean).map((b, i) => (
                   <li key={i} className="flex items-center gap-2 text-sm text-gray-300">
-                    <span className="text-game-green">✓</span> {b}
+                    <span className="text-[#00e676]">✓</span> {b}
                   </li>
                 ))}
               </ul>
