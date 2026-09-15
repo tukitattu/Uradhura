@@ -327,3 +327,34 @@ body {
 @keyframes sparkle       { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.4; transform:scale(0.7); } }
 @keyframes heartBeat     { 0%,100% { transform:scale(1); } 14% { transform:scale(1.15); } 28% { transform:scale(1); } 42% { transform:scale(1.1); } 70% { transform:scale(1); } }
 @keyframes livePing      { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.4); opacity:0.5; } }
+
+/* ─── CSS Variable Overrides (from Design Token System) ──────────────────── */
+/* These vars are set at runtime by DesignTokenProvider from saved tokens.   */
+/* Default values match the DearLive theme and are overridden per-scope.     */
+:root {
+  --dl-bg:           #0a0010;
+  --dl-surface:      #12001e;
+  --dl-card:         #1a0028;
+  --dl-border:       #3d1155;
+  --dl-pink:         #ff1fa6;
+  --dl-purple:       #8b00ff;
+  --dl-gold:         #ffd700;
+  --dl-green:        #00e676;
+  --dl-red:          #ff3d57;
+  --dl-text:         #ffffff;
+  --dl-text-muted:   rgba(255,255,255,0.45);
+  --dl-bg-gradient:  radial-gradient(ellipse at 50% 0%, #3d0060 0%, #0a0010 70%);
+  --dl-card-gradient:linear-gradient(135deg, #1a0028 0%, #0f0018 100%);
+  --dl-btn-primary:  linear-gradient(135deg, #ff1fa6 0%, #e000c0 100%);
+  --dl-btn-gold:     linear-gradient(135deg, #ffd700 0%, #ff8c00 50%, #ffd700 100%);
+  --dl-glow-primary: 0 0 20px rgba(255,31,166,0.5);
+  --dl-radius:       16px;
+}
+
+/* Apply CSS vars to key elements */
+.dl-card        { background: var(--dl-card-gradient) !important; border-color: var(--dl-border) !important; border-radius: var(--dl-radius) !important; }
+.dl-card-glow   { background: var(--dl-card-gradient) !important; border-color: color-mix(in srgb, var(--dl-pink) 30%, transparent) !important; }
+.dl-card-gold   { background: var(--dl-card-gradient) !important; border-color: color-mix(in srgb, var(--dl-gold) 30%, transparent) !important; }
+.dl-btn-pink    { background: var(--dl-btn-primary) !important; }
+.dl-btn-gold    { background: var(--dl-btn-gold) !important; }
+.dl-input:focus { border-color: color-mix(in srgb, var(--dl-pink) 60%, transparent) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--dl-pink) 10%, transparent) !important; }

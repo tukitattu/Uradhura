@@ -359,3 +359,80 @@ export interface AuditLog {
   ipAddress?: string;
   createdAt: string;
 }
+
+// ─── Super Admin ──────────────────────────────────────────────────────────────
+
+export const superAdminApi = {
+  // Design tokens
+  getTokens: (scope?: string) =>
+    apiFetch<DesignToken[]>(`/superadmin/design-tokens${scope ? `?scope=${scope}` : ''}`),
+  saveToken: (data: Partial<DesignToken>) =>
+    apiFetch<DesignToken>('/superadmin/design-tokens', { method: 'POST', body: JSON.stringify(data) }),
+  bulkSave: (tokens: Partial<DesignToken>[]) =>
+    apiFetch<DesignToken[]>('/superadmin/design-tokens/bulk', { method: 'POST', body: JSON.stringify({ tokens }) }),
+  deleteToken: (id: string) =>
+    apiFetch(`/superadmin/design-tokens/${id}`, { method: 'DELETE' }),
+
+  // Game branding
+  getGameBrandings: () => apiFetch<GameWithBranding[]>('/superadmin/game-branding'),
+  saveGameBranding: (slug: string, data: Partial<GameBranding>) =>
+    apiFetch<GameBranding>(`/superadmin/game-branding/${slug}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  // Feature flags
+  getFlags: () => apiFetch<FeatureFlag[]>('/superadmin/feature-flags'),
+  saveFlag: (data: Partial<FeatureFlag>) =>
+    apiFetch<FeatureFlag>('/superadmin/feature-flags', { method: 'POST', body: JSON.stringify(data) }),
+  deleteFlag: (id: string) =>
+    apiFetch(`/superadmin/feature-flags/${id}`, { method: 'DELETE' }),
+
+  // Stats
+  getStats: () => apiFetch<PlatformStats>('/superadmin/stats'),
+};
+
+export interface DesignToken {
+  id: string;
+  scope: string;
+  key: string;
+  value: string;
+  label?: string;
+  updatedAt: string;
+}
+
+export interface GameBranding {
+  id: string;
+  gameSlug: string;
+  displayName?: string;
+  logoUrl?: string;
+  iconEmoji?: string;
+  primaryColor?: string;
+  accentColor?: string;
+  bgGradient?: string;
+  tagline?: string;
+  isVisible: boolean;
+  updatedAt: string;
+}
+
+export interface GameWithBranding extends Game {
+  branding: GameBranding | null;
+}
+
+export interface FeatureFlag {
+  id: string;
+  key: string;
+  label: string;
+  description?: string;
+  enabled: boolean;
+  allowedRoles: string;
+  updatedAt: string;
+}
+
+export interface PlatformStats {
+  players: number;
+  activePlayers: number;
+  games: number;
+  rounds: number;
+  bets: number;
+  designTokens: number;
+  version: string;
+  db: string;
+}

@@ -243,3 +243,47 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
+model DesignToken {
+  id          String   @id @default(uuid())
+  scope       String   // global | page:games | page:admin | game:greedy | etc.
+  key         String   // e.g. primaryColor, bgGradient, cardBg
+  value       String   // hex / gradient / css string
+  label       String?
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([scope, key])
+  @@map("design_tokens")
+}
+
+model GameBranding {
+  id          String   @id @default(uuid())
+  gameSlug    String   @unique
+  displayName String?
+  logoUrl     String?
+  iconEmoji   String?
+  primaryColor  String?
+  accentColor   String?
+  bgGradient    String?
+  tagline     String?
+  isVisible   Boolean  @default(true)
+  updatedBy   String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("game_branding")
+}
+
+model FeatureFlag {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  label       String
+  description String?
+  enabled     Boolean  @default(true)
+  allowedRoles String  @default("player,admin,super_admin") // comma-separated
+  updatedBy   String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("feature_flags")
+}

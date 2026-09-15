@@ -194,6 +194,37 @@ export async function demoTopUp(req: Request, res: Response): Promise<void> {
   sendSuccess(res, { balance: wallet?.balance ?? 0, tokensAdded: totalTokens }, 'Top-up successful');
 }
 
+// ─── Public Design Tokens ─────────────────────────────────────────────────────
+
+export async function getPublicDesignTokens(req: Request, res: Response): Promise<void> {
+  // Public endpoint — no auth required. Returns only global tokens.
+  const tokens = await prisma.designToken.findMany({
+    where: { scope: 'global' },
+    orderBy: { key: 'asc' },
+  });
+  sendSuccess(res, tokens);
+}
+
+// ─── Public Game Branding ─────────────────────────────────────────────────────
+
+export async function getPublicGameBranding(req: Request, res: Response): Promise<void> {
+  // Public endpoint — returns branding for all visible games merged with game data
+  const games = await prisma.game.findMany({
+    where: { isActive: true },
+    orderBy: { sortOrder: 'asc' },
+    include: {
+      options: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
+      configurations: { where: { isActive: true }, take: 1 },
+    },
+  });
+  const brandings = await prisma.gameBranding.findMany();
+  const result = games.map(g => ({
+    ...g,
+    branding: brandings.find(b => b.gameSlug === g.slug) || null,
+  }));
+  sendSuccess(res, result);
+}
+
 // ─── Wallet ───────────────────────────────────────────────────────────────────
 
 export async function getWallet(req: Request, res: Response): Promise<void> {

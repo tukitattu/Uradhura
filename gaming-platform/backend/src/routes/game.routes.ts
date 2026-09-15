@@ -15,6 +15,7 @@ import {
   getWallet,
   getPublicPackages,
   demoTopUp,
+  getPublicDesignTokens,
 } from '../controllers/game.controller';
 
 const router = Router();
@@ -32,6 +33,7 @@ router.post('/player/topup', authenticate, demoTopUp);
 
 // Public game info
 router.get('/', listGames);
+router.get('/design-tokens', getPublicDesignTokens);
 
 // Round management (player reads, admin writes)
 router.get('/:gameId/round', authenticate, getActiveRound);

@@ -202,6 +202,53 @@ async function main() {
     if (!existingPkg) {
       await prisma.tokenPackage.create({ data: { id: uuidv4(), ...pkg } });
     }
+
+  // ─── Game Branding Defaults ──────────────────────────────────────────────
+  const brandingDefaults = [
+    { gameSlug:'greedy',        iconEmoji:'🐷', primaryColor:'#ff1fa6', accentColor:'#ff8c00', bgGradient:'radial-gradient(ellipse at 50% 0%, #4a0020 0%, #0a0010 70%)',  tagline:'Spin the food wheel & win big' },
+    { gameSlug:'animal-wheel',  iconEmoji:'🐯', primaryColor:'#ff8c00', accentColor:'#ffd700', bgGradient:'radial-gradient(ellipse at 50% 0%, #3d1500 0%, #0a0010 70%)',  tagline:'Wild animals, wild winnings' },
+    { gameSlug:'teen-patti',    iconEmoji:'🃏', primaryColor:'#0066ff', accentColor:'#00d4ff', bgGradient:'radial-gradient(ellipse at 50% 0%, #001a4a 0%, #0a0010 70%)',  tagline:'Classic 3-card poker style' },
+    { gameSlug:'food-wheel',    iconEmoji:'🍜', primaryColor:'#00e676', accentColor:'#00d4ff', bgGradient:'radial-gradient(ellipse at 50% 0%, #003d1a 0%, #0a0010 70%)',  tagline:'Package deals & food spins' },
+    { gameSlug:'three-card',    iconEmoji:'🎴', primaryColor:'#8b00ff', accentColor:'#ff1fa6', bgGradient:'radial-gradient(ellipse at 50% 0%, #2d004a 0%, #0a0010 70%)',  tagline:'Three players, one winner' },
+    { gameSlug:'slot',          iconEmoji:'🎰', primaryColor:'#ffd700', accentColor:'#ff3d57', bgGradient:'radial-gradient(ellipse at 50% 0%, #4a0000 0%, #0a0010 70%)',  tagline:'Reels & multiplier jackpots' },
+  ];
+  for (const b of brandingDefaults) {
+    const existingB = await prisma.gameBranding.findUnique({ where: { gameSlug: b.gameSlug } });
+    if (!existingB) {
+      await prisma.gameBranding.create({ data: { ...b, isVisible: true } });
+      console.log('  ✓ Branding: ' + b.gameSlug);
+    }
+  }
+
+  // ─── Feature Flags Defaults ───────────────────────────────────────────────
+  const defaultFlags = [
+    { key:'auto_bet',          label:'Auto Bet',            description:'Allow players to use automatic betting',      enabled:true, allowedRoles:'player,admin,super_admin' },
+    { key:'hot_options',       label:'HOT Labels',          description:'Show HOT badge on trending options',          enabled:true, allowedRoles:'player,admin,super_admin' },
+    { key:'big_winner_board',  label:'Big Winner Board',    description:'Show big winners on Food Wheel',              enabled:true, allowedRoles:'player,admin,super_admin' },
+    { key:'demo_topup',        label:'Demo Top Up',         description:'Show demo top-up button for players',         enabled:true, allowedRoles:'player,admin,super_admin' },
+    { key:'player_profile',    label:'Player Profile Page', description:'Enable /profile page',                       enabled:true, allowedRoles:'player,admin,super_admin' },
+    { key:'result_history',    label:'Result History Strip',description:'Show recent results on wheel games',          enabled:true, allowedRoles:'player,admin,super_admin' },
+    { key:'today_earnings',    label:'Today Earnings',      description:'Show today stats on lobby',                   enabled:true, allowedRoles:'player,admin,super_admin' },
+    { key:'sound_control',     label:'Sound Controls',      description:'Show mute/unmute in game header',             enabled:true, allowedRoles:'player,admin,super_admin' },
+    { key:'admin_force_result',label:'Force Result Admin',  description:'Allow admin to force-set round results',      enabled:true, allowedRoles:'admin,super_admin' },
+    { key:'player_override',   label:'Player Override',     description:'Allow per-player rule overrides',             enabled:true, allowedRoles:'admin,super_admin' },
+    { key:'profit_simulation', label:'Profit Simulation',   description:'Enable profit scenario simulation',           enabled:true, allowedRoles:'admin,super_admin' },
+    { key:'csv_export',        label:'CSV Export',          description:'Enable bet report CSV download',              enabled:true, allowedRoles:'admin,super_admin' },
+    { key:'package_betting',   label:'Package Betting',     description:'Enable package bet bundles on Food Wheel',    enabled:true, allowedRoles:'player,admin,super_admin' },
+    { key:'extra_bet',         label:'Extra Bet Slot',      description:'Enable 50% extra bet on Slot Machine',        enabled:true, allowedRoles:'player,admin,super_admin' },
+    { key:'game_greedy',       label:'Game: Greedy',        description:'Show/hide Greedy game from lobby',            enabled:true, allowedRoles:'admin,super_admin' },
+    { key:'game_animal_wheel', label:'Game: Animal Wheel',  description:'Show/hide Animal Wheel game from lobby',      enabled:true, allowedRoles:'admin,super_admin' },
+    { key:'game_teen_patti',   label:'Game: Teen Patti',    description:'Show/hide Teen Patti game from lobby',        enabled:true, allowedRoles:'admin,super_admin' },
+    { key:'game_food_wheel',   label:'Game: Food Wheel',    description:'Show/hide Food Wheel game from lobby',        enabled:true, allowedRoles:'admin,super_admin' },
+    { key:'game_three_card',   label:'Game: Three Card',    description:'Show/hide Three Card game from lobby',        enabled:true, allowedRoles:'admin,super_admin' },
+    { key:'game_slot',         label:'Game: Slot Machine',  description:'Show/hide Slot Machine game from lobby',      enabled:true, allowedRoles:'admin,super_admin' },
+  ];
+  for (const f of defaultFlags) {
+    const existingF = await prisma.featureFlag.findUnique({ where: { key: f.key } });
+    if (!existingF) {
+      await prisma.featureFlag.create({ data: f });
+      console.log('  ✓ Flag: ' + f.key);
+    }
   }
 
   console.log('✅ Seed complete!');
@@ -215,3 +262,4 @@ main()
     process.exit(1);
   })
   .finally(() => prisma.$disconnect());
+}

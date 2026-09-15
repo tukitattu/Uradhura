@@ -25,11 +25,11 @@ function KpiCard({ title, value, sub, icon: Icon, color, onChange }: {
           <Icon size={22} style={{ color }} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-gray-400">{title}</p>
+          <p className="text-xs text-[rgba(255,255,255,0.45)]">{title}</p>
           <p className="text-2xl font-black text-white truncate">{value}</p>
-          <p className="text-xs text-gray-400">{sub}</p>
+          <p className="text-xs text-[rgba(255,255,255,0.45)]">{sub}</p>
         </div>
-        <ChevronRight size={16} className="text-gray-500 flex-shrink-0" />
+        <ChevronRight size={16} className="text-[rgba(255,255,255,0.3)] flex-shrink-0" />
       </CardBody>
     </Card>
   );
@@ -140,11 +140,11 @@ export default function AdminDashboard() {
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i}>
               <CardBody className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-game-border animate-pulse" />
+                <div className="w-12 h-12 rounded-xl bg-[rgba(61,17,85,0.6)] animate-pulse" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-3 bg-game-border rounded animate-pulse w-2/3" />
-                  <div className="h-7 bg-game-border rounded animate-pulse w-full" />
-                  <div className="h-3 bg-game-border rounded animate-pulse w-1/2" />
+                  <div className="h-3 bg-[rgba(61,17,85,0.6)] rounded animate-pulse w-2/3" />
+                  <div className="h-7 bg-[rgba(61,17,85,0.6)] rounded animate-pulse w-full" />
+                  <div className="h-3 bg-[rgba(61,17,85,0.6)] rounded animate-pulse w-1/2" />
                 </div>
               </CardBody>
             </Card>
@@ -161,7 +161,7 @@ export default function AdminDashboard() {
 
       {/* Save message */}
       {saveMsg && (
-        <div className="fixed bottom-6 right-6 bg-game-green text-black font-bold px-4 py-2 rounded-lg shadow-lg z-50 animate-bounce-in">
+        <div className="fixed bottom-6 right-6 bg-[#00e676] text-black font-bold px-4 py-2 rounded-lg shadow-lg z-50 animate-bounce-in">
           ✓ {saveMsg}
         </div>
       )}
@@ -176,11 +176,11 @@ export default function AdminDashboard() {
                 <TrendingUp size={20} className="text-[#ff1fa6]" />
                 <div>
                   <h2 className="font-black text-white">Profit &amp; Risk Engine</h2>
-                  <p className="text-xs text-gray-400">Configure global risk and profit parameters for all games</p>
+                <p className="text-xs text-[rgba(255,255,255,0.45)]">Configure global risk and profit parameters for all games</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 text-xs text-[#00e676] font-bold bg-game-green/10 border border-game-green/20 px-2 py-1 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-game-green" /> Engine Active
+              <span className="flex items-center gap-1.5 text-xs text-[#00e676] font-bold bg-[rgba(0,230,118,0.15)] border border-[rgba(0,230,118,0.3)] px-2 py-1 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00e676]" /> Engine Active
               </span>
             </div>
           </CardHeader>
@@ -191,7 +191,7 @@ export default function AdminDashboard() {
               <Input label="Max Payout Per Round" type="number" value={config.maxPayoutPerRound} onChange={e => setConfig({ ...config, maxPayoutPerRound: parseFloat(e.target.value) })} />
               <div>
                 <Input label="Jackpot / RNG Weight Control" type="number" value={config.jackpotWeight} step="0.1" onChange={e => setConfig({ ...config, jackpotWeight: parseFloat(e.target.value) })} />
-                <p className="text-xs text-gray-500 mt-1">1.0 = Normal (Adjusts jackpot frequency)</p>
+              <p className="text-xs text-[rgba(255,255,255,0.45)]">1.0 = Normal (Adjusts jackpot frequency)</p>
               </div>
             </div>
             <Input label="Max Daily Loss Per Player" type="number" value={config.maxDailyLossPerPlayer} onChange={e => setConfig({ ...config, maxDailyLossPerPlayer: parseFloat(e.target.value) })} />
