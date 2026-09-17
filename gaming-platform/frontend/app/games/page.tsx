@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { gamesApi, playerApi, betsApi, type Game, type TokenPackage } from '@/lib/api';
 import { formatTokens } from '@/lib/utils';
-import { LogOut, Settings, X, Coins, Sparkles, Crown, Home, History, MessageCircle, ArrowUpRight } from 'lucide-react';
+import { LogOut, Settings, X, Coins, Sparkles, Crown, Home, History, MessageCircle } from 'lucide-react';
 
 const GAME_META: Record<string, { emoji: string; bg: string; glow: string; tag: string }> = {
   greedy:        { emoji:'🐷', bg:'from-[#4a0020] to-[#1a0028]', glow:'rgba(255,31,166,0.3)',  tag:'Food Wheel' },
@@ -14,6 +14,7 @@ const GAME_META: Record<string, { emoji: string; bg: string; glow: string; tag: 
   'food-wheel':  { emoji:'🍜', bg:'from-[#003d1a] to-[#1a0028]', glow:'rgba(0,230,118,0.3)',   tag:'Packages' },
   'three-card':  { emoji:'🎴', bg:'from-[#2d004a] to-[#1a0028]', glow:'rgba(139,0,255,0.3)',   tag:'3 Players' },
   slot:          { emoji:'🎰', bg:'from-[#4a0000] to-[#1a0028]', glow:'rgba(255,61,87,0.3)',   tag:'Jackpot' },
+  'luck-bag':    { emoji:'🎁', bg:'from-[#003a4a] to-[#1a0028]', glow:'rgba(0,200,255,0.3)',   tag:'Mystery Bags' },
 };
 
 export default function GamesPage() {
@@ -233,10 +234,10 @@ export default function GamesPage() {
 
       <nav className="fixed bottom-0 inset-x-0 z-20 border-t border-[rgba(61,17,85,0.7)] bg-[rgba(10,0,16,0.92)] backdrop-blur-xl">
         <div className="max-w-md mx-auto grid grid-cols-4 px-3 py-2 text-[10px] font-bold text-[rgba(255,255,255,0.45)]">
-          <Link href="/games" className="flex flex-col items-center gap-1 text-[#ff1fa6]"><Home size={17} />Lobby</Link>
+          <Link href="/games"   className="flex flex-col items-center gap-1 text-[#ff1fa6]"><Home size={17} />Lobby</Link>
+          <Link href="/live"    className="flex flex-col items-center gap-1 hover:text-white"><span className="text-base leading-none">📡</span>Live</Link>
           <Link href="/profile" className="flex flex-col items-center gap-1 hover:text-white"><History size={17} />Activity</Link>
-          <Link href="/profile" className="flex flex-col items-center gap-1 hover:text-white"><MessageCircle size={17} />Messages</Link>
-          <Link href="/profile" className="flex flex-col items-center gap-1 hover:text-white"><ArrowUpRight size={17} />Profile</Link>
+          <Link href="/profile" className="flex flex-col items-center gap-1 hover:text-white"><MessageCircle size={17} />Profile</Link>
         </div>
       </nav>
     </div>

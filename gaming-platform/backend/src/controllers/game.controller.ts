@@ -172,6 +172,82 @@ export async function getMyBets(req: Request, res: Response): Promise<void> {
   sendSuccess(res, result);
 }
 
+// ─── Recent Results ───────────────────────────────────────────────────────────
+
+export async function getRecentResults(req: Request, res: Response): Promise<void> {
+  const { gameId } = req.params;
+  const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
+
+  const results = await prisma.gameResult.findMany({
+    where: { round: { gameId, status: 'SETTLED' } },
+    orderBy: { processedAt: 'desc' },
+    take: limit,
+    include: {
+      round: {
+        select: {
+          id: true,
+          roundNumber: true,
+          winnerId: true,
+          totalBetAmount: true,
+          settledAt: true,
+        },
+      },
+    },
+  });
+
+  // Enrich with winning option details
+  const winnerIds = results.map((r) => r.round.winnerId).filter(Boolean) as string[];
+  const options = winnerIds.length
+    ? await prisma.gameOption.findMany({ where: { id: { in: winnerIds } } })
+    : [];
+
+  const enriched = results.map((r) => {
+    const option = options.find((o) => o.id === r.round.winnerId);
+    return {
+      ...r,
+      winningOptionLabel: option?.label ?? r.winningOption,
+      winningOptionColor: option?.colorHex ?? '#ffffff',
+      winningOptionMultiplier: option?.multiplier ?? null,
+    };
+  });
+
+  sendSuccess(res, enriched);
+}
+
+// ─── Today's Earnings ─────────────────────────────────────────────────────────
+
+export async function getTodayStats(req: Request, res: Response): Promise<void> {
+  const playerId = req.player!.playerId;
+
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const [todayBets, wallet] = await Promise.all([
+    prisma.gameBet.findMany({
+      where: { playerId, createdAt: { gte: startOfDay } },
+      select: { amount: true, status: true, payout: true },
+    }),
+    prisma.walletAccount.findUnique({ where: { playerId }, select: { totalWon: true, totalLost: true, balance: true } }),
+  ]);
+
+  const todayWon  = todayBets.filter(b => b.status === 'WON').reduce((s, b) => s + (b.payout ?? 0), 0);
+  const todayLost = todayBets.filter(b => b.status === 'LOST').reduce((s, b) => s + b.amount, 0);
+  const todayStaked = todayBets.reduce((s, b) => s + b.amount, 0);
+  const todayBetCount = todayBets.length;
+  const todayEarnings = todayWon - todayLost; // net (can be negative)
+
+  sendSuccess(res, {
+    todayEarnings,
+    todayWon,
+    todayLost,
+    todayStaked,
+    todayBetCount,
+    allTimeWon: wallet?.totalWon ?? 0,
+    allTimeLost: wallet?.totalLost ?? 0,
+    balance: wallet?.balance ?? 0,
+  });
+}
+
 export async function getRoundOptionTotals(req: Request, res: Response): Promise<void> {
   const { roundId } = req.params;
   const totals = await getOptionTotals(roundId);

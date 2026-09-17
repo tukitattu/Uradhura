@@ -20,8 +20,28 @@ model Player {
   walletAccount    WalletAccount?
   bets             GameBet[]
   auditLogs        AuditLog[]
+  adminRequests    AdminAuthorizationRequest[]
+  videoCallAccess  VideoCallAccess?
+  paymentOrders    PaymentOrder[]
 
   @@map("players")
+}
+
+model AdminAuthorizationRequest {
+  id                  String   @id @default(uuid())
+  playerId            String
+  requestedRole       String   @default("admin")
+  requestedPermissions String? 
+  notes               String?
+  status              String   @default("pending") // pending | approved | rejected
+  reviewedBy          String?
+  reviewedAt          DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  player              Player   @relation(fields: [playerId], references: [id])
+
+  @@map("admin_authorization_requests")
 }
 
 model WalletAccount {
@@ -67,9 +87,11 @@ model Game {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  configurations GameConfiguration[]
-  rounds         GameRound[]
-  options        GameOption[]
+  configurations       GameConfiguration[]
+  rounds               GameRound[]
+  options              GameOption[]
+  denominationConfig   GameDenominationConfig?
+  packages             GamePackage[]
 
   @@map("games")
 }
@@ -286,4 +308,108 @@ model FeatureFlag {
   updatedAt   DateTime @updatedAt
 
   @@map("feature_flags")
+}
+
+// ─── Game Denomination Config ─────────────────────────────────────────────────
+// Stores configurable bet denominations per game as a JSON array of numbers.
+model GameDenominationConfig {
+  id           String   @id @default(uuid())
+  gameId       String   @unique
+  denominations String  @default("[1000,5000,50000,100000]") // JSON array
+  minBet        Float   @default(100)
+  maxBet        Float   @default(1000000)
+  updatedBy     String?
+  updatedAt     DateTime @updatedAt
+
+  game         Game     @relation(fields: [gameId], references: [id])
+
+  @@map("game_denomination_configs")
+}
+
+// ─── Game Package (Food Wheel package betting) ────────────────────────────────
+model GamePackage {
+  id          String   @id @default(uuid())
+  gameId      String
+  name        String
+  optionLabels String  // JSON array of option labels to bet on
+  price       Float
+  multiplier  Float
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  game        Game     @relation(fields: [gameId], references: [id])
+
+  @@map("game_packages")
+}
+
+// ─── Video Call Access ────────────────────────────────────────────────────────
+// Superadmin grants/revokes video call capability to specific admin accounts.
+model VideoCallAccess {
+  id          String   @id @default(uuid())
+  playerId    String   @unique
+  grantedBy   String   // super_admin player ID
+  channelName String   @default("admin-broadcast") // Agora channel
+  role        String   @default("host") // host | audience
+  isActive    Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  player      Player   @relation(fields: [playerId], references: [id])
+
+  @@map("video_call_access")
+}
+
+// ─── Payment Order ────────────────────────────────────────────────────────────
+model PaymentOrder {
+  id              String   @id @default(uuid())
+  playerId        String
+  packageId       String?
+  provider        String   // stripe | revenuecat | manual
+  externalOrderId String?  // Stripe payment_intent ID or RevenueCat transaction ID
+  currency        String   @default("USD")
+  amountCents     Int      // real-money amount in cents
+  tokenAmount     Int      // tokens to credit on success
+  status          String   @default("pending") // pending | completed | failed | refunded
+  receiptData     String?  // raw receipt/webhook payload JSON
+  metadata        String   @default("{}") // JSON for extra provider data
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  player          Player   @relation(fields: [playerId], references: [id])
+
+  @@map("payment_orders")
+}
+
+// ─── Payment Gateway Config ───────────────────────────────────────────────────
+// Superadmin-managed gateway settings (keys stored masked; actual secrets in env).
+model PaymentGatewayConfig {
+  id              String   @id @default(uuid())
+  provider        String   @unique // stripe | revenuecat | manual
+  isEnabled       Boolean  @default(false)
+  webhookSecret   String?  // hashed/masked — real value in env
+  publicKey       String?  // safe-to-store publishable key
+  webhookUrl      String?  // configured at provider dashboard
+  metadata        String   @default("{}") // provider-specific config JSON
+  updatedBy       String?
+  updatedAt       DateTime @updatedAt
+
+  @@map("payment_gateway_configs")
+}
+
+// ─── Service Health Snapshot ──────────────────────────────────────────────────
+model ServiceHealthSnapshot {
+  id              String   @id @default(uuid())
+  uptimeSeconds   Int
+  dbPingMs        Int
+  memUsedMb       Float
+  memTotalMb      Float
+  nodeVersion     String
+  environment     String
+  pendingMigrations Int   @default(0)
+  recordedAt      DateTime @default(now())
+
+  @@map("service_health_snapshots")
 }

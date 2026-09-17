@@ -3,7 +3,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import {
-  superAdminApi, type DesignToken, type GameWithBranding, type FeatureFlag, type PlatformStats,
+  superAdminApi,
+  adminAuthApi,
+  type DesignToken,
+  type GameWithBranding,
+  type FeatureFlag,
+  type PlatformStats,
+  type AdminAuthorizationRequest,
 } from '@/lib/api';
 import { cn, formatTokens } from '@/lib/utils';
 import {
@@ -319,6 +325,7 @@ export default function SuperAdminPage() {
   const [games, setGames] = useState<GameWithBranding[]>([]);
   const [flags, setFlags] = useState<FeatureFlag[]>([]);
   const [stats, setStats] = useState<PlatformStats | null>(null);
+  const [adminRequests, setAdminRequests] = useState<AdminAuthorizationRequest[]>([]);
   const [selectedScope, setSelectedScope] = useState('global');
   const [selectedGame, setSelectedGame] = useState<GameWithBranding | null>(null);
   const [toast, setToast] = useState('');
@@ -336,13 +343,14 @@ export default function SuperAdminPage() {
   const loadAll = useCallback(async () => {
     setDataLoading(true);
     try {
-      const [t, g, f, s] = await Promise.all([
+      const [t, g, f, s, r] = await Promise.all([
         superAdminApi.getTokens(),
         superAdminApi.getGameBrandings(),
         superAdminApi.getFlags(),
         superAdminApi.getStats(),
+        adminAuthApi.getRequests(),
       ]);
-      setTokens(t); setGames(g); setFlags(f); setStats(s);
+      setTokens(t); setGames(g); setFlags(f); setStats(s); setAdminRequests(r);
     } catch (err) { showToast('Failed to load — check super_admin role'); }
     finally { setDataLoading(false); }
   }, []);
@@ -399,6 +407,19 @@ export default function SuperAdminPage() {
     showToast('Flag deleted');
   }
 
+  async function handleAdminRequest(action: 'approve' | 'reject', requestId: string) {
+    if (action === 'approve') {
+      await adminAuthApi.approve(requestId, 'Approved by super admin');
+      showToast('Admin request approved');
+    } else {
+      await adminAuthApi.reject(requestId, 'Rejected by super admin');
+      showToast('Admin request rejected');
+    }
+
+    const refreshed = await adminAuthApi.getRequests();
+    setAdminRequests(refreshed);
+  }
+
   const scopeTokens = tokens.filter(t=>t.scope===selectedScope);
 
   if (loading || !player || player.role !== 'super_admin') return null;
@@ -433,6 +454,56 @@ export default function SuperAdminPage() {
           className="flex items-center gap-2 text-xs text-[rgba(255,255,255,0.5)] hover:text-white border border-[rgba(61,17,85,0.6)] px-3 py-2 rounded-xl transition-all">
           <RefreshCw size={13} className={dataLoading?'animate-spin':''}/> Refresh
         </button>
+      </div>
+
+      <div className="rounded-2xl border border-[rgba(61,17,85,0.45)] bg-[rgba(255,255,255,0.03)] p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[rgba(255,255,255,0.4)]">Admin approvals</p>
+            <h2 className="text-lg font-black text-white">Pending admin requests</h2>
+          </div>
+          <span className="rounded-full border border-[rgba(255,215,0,0.35)] bg-[rgba(255,215,0,0.08)] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.15em] text-[#ffd700]">
+            {adminRequests.filter(r => r.status === 'pending').length} pending
+          </span>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {adminRequests.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[rgba(61,17,85,0.5)] bg-[rgba(255,255,255,0.02)] p-3 text-sm text-[rgba(255,255,255,0.45)]">
+              No admin authorization requests yet.
+            </div>
+          ) : (
+            adminRequests.map((request) => (
+              <div key={request.id} className="rounded-xl border border-[rgba(61,17,85,0.45)] bg-[rgba(255,255,255,0.02)] p-3">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-white">{request.player?.username || 'Unknown user'}</span>
+                      <span className="text-[9px] uppercase tracking-[0.12em] text-[rgba(255,255,255,0.4)]">{request.status}</span>
+                    </div>
+                    <div className="text-xs text-[rgba(255,255,255,0.45)]">{request.player?.email || 'No email'}</div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full border border-[rgba(255,31,166,0.35)] bg-[rgba(255,31,166,0.08)] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[#ff1fa6]">
+                      {request.requestedRole}
+                    </span>
+                    {request.status === 'pending' && (
+                      <>
+                        <button onClick={() => handleAdminRequest('approve', request.id)} className="rounded-lg bg-[rgba(0,230,118,0.12)] border border-[rgba(0,230,118,0.35)] px-3 py-1.5 text-xs font-bold text-[#00e676]">Approve</button>
+                        <button onClick={() => handleAdminRequest('reject', request.id)} className="rounded-lg bg-[rgba(255,61,87,0.12)] border border-[rgba(255,61,87,0.35)] px-3 py-1.5 text-xs font-bold text-[#ff3d57]">Reject</button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {request.notes && (
+                  <div className="mt-3 rounded-lg bg-[rgba(255,255,255,0.02)] p-2 text-xs text-[rgba(255,255,255,0.65)]">{request.notes}</div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {/* Tabs */}

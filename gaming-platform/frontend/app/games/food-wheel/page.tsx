@@ -70,7 +70,7 @@ export default function FoodWheelPage() {
   if (!player||!game) return null;
 
   return (
-    <GameLayout title={game.branding?.displayName || 'Food Wheel'} branding={game.branding} balance={balance} roundNumber={round?.roundNumber}>
+    <GameLayout title={game.branding?.displayName || 'Food Wheel'} branding={game.branding} balance={balance} roundNumber={round?.roundNumber} gameSlug="food-wheel">
       <div className="flex flex-col lg:flex-row gap-4 p-4 flex-1">
         <div className="flex-1 flex flex-col items-center gap-4 min-w-0">
           {round && <StatusBanner status={round.status} winnerId={round.winnerId} winnerLabel={winnerOption?.label}/>}
@@ -84,15 +84,15 @@ export default function FoodWheelPage() {
 
           <div className="mt-2 mb-8">
             <BettingWheel options={game.options} totals={totals} selectedOptionId={selectedOption}
-              onSelect={setSelectedOption} disabled={round?.status!=='BETTING_OPEN'||myBetThisRound===round?.id}
-              winnerId={round?.status==='SETTLED'?round.winnerId:null}
-              spinning={round?.status==='RESULT_PROCESSING'} centerEmoji="🍜" centerLabel="FOOD"/>
+              onSelect={setSelectedOption} disabled={round?.status !== 'BETTING_OPEN' || myBetThisRound === round?.id}
+              winnerId={round?.status === 'SETTLED' ? round.winnerId : null}
+              spinning={round?.status === 'RESULT_PROCESSING'} centerEmoji="🍜" centerLabel="FOOD"/>
           </div>
 
           {round && <div className="w-full max-w-[260px]"><CountdownTimer seconds={countdown} status={round.status}/></div>}
 
           <div className="w-full max-w-[420px] dl-card rounded-2xl p-4 space-y-3">
-            <BetDenominations selected={betAmount} onSelect={setBetAmount} disabled={round?.status!=='BETTING_OPEN'}/>
+            <BetDenominations selected={betAmount} onSelect={setBetAmount} disabled={round?.status !== 'BETTING_OPEN'}/>
             <Button onClick={handleBet} disabled={!canBet} loading={betting} variant="gold" className="w-full" size="lg">
               {myBetThisRound===round?.id?'✓ Placed':selectedOption?`Bet 🪙${formatTokens(betAmount)}`:'Select an option'}
             </Button>
@@ -107,7 +107,7 @@ export default function FoodWheelPage() {
             <div className="space-y-2">
               {PACKAGES.map(pkg=>(
                 <button key={pkg.id} onClick={()=>round?.status==='BETTING_OPEN'&&myBetThisRound!==round?.id&&handlePackageBet(pkg)}
-                  disabled={round?.status!=='BETTING_OPEN'||!!myBetThisRound}
+                  disabled={round?.status !== 'BETTING_OPEN' || !!myBetThisRound}
                   className={`w-full p-3 rounded-xl border text-left transition-all
                     ${selectedPackage===pkg.id?'border-[rgba(255,215,0,0.5)] bg-[rgba(255,215,0,0.08)]':'border-[rgba(61,17,85,0.6)] hover:border-[rgba(255,215,0,0.3)]'}
                     disabled:opacity-40 disabled:cursor-not-allowed`}>

@@ -62,7 +62,7 @@ export default function ThreeCardPage() {
   if (!player||!game) return null;
 
   return (
-    <GameLayout title={game.branding?.displayName || 'Three Card'} branding={game.branding} balance={balance} roundNumber={round?.roundNumber}>
+    <GameLayout title={game.branding?.displayName || 'Three Card'} branding={game.branding} balance={balance} roundNumber={round?.roundNumber} gameSlug="three-card">
       <div className="flex flex-col items-center gap-4 p-4 max-w-2xl mx-auto w-full flex-1">
         {round&&<StatusBanner status={round.status} winnerId={round.winnerId} winnerLabel={game.options.find(o=>o.id===round.winnerId)?.label}/>}
         {betResult&&(
@@ -125,12 +125,16 @@ export default function ThreeCardPage() {
           <div className="text-xs text-[rgba(255,255,255,0.4)] text-center font-semibold">x2.9 multiplier on win · Click position to bet</div>
           <BetDenominations selected={betAmount} onSelect={setBetAmount} disabled={!canBet}/>
           <div className="flex gap-2">
-            {selectedOption&&<Button onClick={()=>handleBet()} disabled={!canBet} loading={betting} variant="gold" className="flex-1">
-              Confirm — {game.options.find(o=>o.id===selectedOption)?.label}
-            </Button>}
-            {lastBet&&<Button onClick={()=>handleBet(lastBet.optionId)} disabled={!canBet} variant="ghost">
-              🔄 Repeat
-            </Button>}
+            {selectedOption && (
+              <Button onClick={() => handleBet()} disabled={!canBet} loading={betting} variant="gold" className="flex-1">
+                Confirm — {game.options.find(o => o.id === selectedOption)?.label}
+              </Button>
+            )}
+            {lastBet && (
+              <Button onClick={() => handleBet(lastBet.optionId)} disabled={!canBet} variant="ghost">
+                🔄 Repeat
+              </Button>
+            )}
           </div>
         </div>
       </div>

@@ -3,13 +3,13 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRound } from '@/hooks/useRound';
-import { gamesApi, type Game } from '@/lib/api';
+import { gamesApi, playerApi, type Game, type TodayStats } from '@/lib/api';
 import GameLayout, { CountdownTimer, BetDenominations, StatusBanner } from '@/components/games/GameLayout';
 import BettingWheel from '@/components/games/BettingWheel';
 import BetHistory from '@/components/games/BetHistory';
 import Button from '@/components/ui/Button';
 import { formatTokens } from '@/lib/utils';
-import { RefreshCw, History, BarChart2 } from 'lucide-react';
+import { RefreshCw, History, BarChart2, TrendingUp } from 'lucide-react';
 
 export default function GreedyPage() {
   const { player, loading, refreshBalance } = useAuth();
@@ -21,9 +21,11 @@ export default function GreedyPage() {
   const [autoBet, setAutoBet] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [myBetThisRound, setMyBetThisRound] = useState<string | null>(null);
+  const [todayStats, setTodayStats] = useState<TodayStats | null>(null);
 
   useEffect(() => { if (!loading && !player) router.push('/login'); }, [player, loading, router]);
   useEffect(() => { gamesApi.get('greedy').then(setGame).catch(() => {}); }, []);
+  useEffect(() => { playerApi.getTodayStats().then(setTodayStats).catch(() => {}); }, []);
 
   const { round, totals, countdown, betting, placeBet } = useRound({ gameId: game?.id || '' });
 
@@ -39,14 +41,25 @@ export default function GreedyPage() {
       const didWin = selectedOption === round.winnerId;
       const option = game?.options.find(o => o.id === round.winnerId);
       setBetResult({ won: didWin, payout: didWin ? betAmount * (option?.multiplier || 1) : 0 });
-      refreshBalance();
+      refreshBalance().then(() => {
+        playerApi.getTodayStats().then(setTodayStats).catch(() => {});
+      });
     }
   }, [round?.status, round?.winnerId]);
 
   async function handleBet() {
     if (!selectedOption || !round) return;
-    try { await placeBet(selectedOption, betAmount); setMyBetThisRound(round.id); await refreshBalance(); }
-    catch (err: unknown) { alert((err as Error).message); }
+    // Auto Bet stop condition (BRD G1-BR-05)
+    if ((player?.balance ?? 0) < betAmount) {
+      setAutoBet(false);
+      alert('Auto Bet stopped: insufficient balance.');
+      return;
+    }
+    try {
+      await placeBet(selectedOption, betAmount);
+      setMyBetThisRound(round.id);
+      await refreshBalance();
+    } catch (err: unknown) { alert((err as Error).message); }
   }
 
   useEffect(() => {
@@ -59,9 +72,9 @@ export default function GreedyPage() {
   if (!player || !game) return null;
 
   return (
-    <GameLayout title={game.branding?.displayName || 'Greedy'} branding={game.branding} balance={balance} roundNumber={round?.roundNumber}>
+    <GameLayout title={game.branding?.displayName || 'Greedy'} branding={game.branding} balance={balance} roundNumber={round?.roundNumber} gameSlug="greedy">
       <div className="flex flex-col lg:flex-row gap-4 p-4 flex-1">
-        {/* Main */}
+        {/* Main column */}
         <div className="flex-1 flex flex-col items-center gap-4 min-w-0">
           {round && <StatusBanner status={round.status} winnerId={round.winnerId} winnerLabel={winnerOption?.label}/>}
 
@@ -94,8 +107,16 @@ export default function GreedyPage() {
               <Button onClick={handleBet} disabled={!canBet} loading={betting} variant="gold" className="flex-1" size="lg">
                 {myBetThisRound === round?.id ? '✓ Placed' : selectedOption ? `Bet 🪙${formatTokens(betAmount)}` : 'Select option'}
               </Button>
-              <Button onClick={() => setAutoBet(!autoBet)} variant={autoBet ? 'primary' : 'ghost'} size="lg">
-                <RefreshCw size={16} className={autoBet ? 'animate-spin' : ''}/> Auto
+              <Button
+                onClick={() => {
+                  if (!autoBet && (player?.balance ?? 0) < betAmount) {
+                    alert('Insufficient balance to start Auto Bet.');
+                    return;
+                  }
+                  setAutoBet(!autoBet);
+                }}
+                variant={autoBet ? 'primary' : 'ghost'} size="lg">
+                <RefreshCw size={16} className={autoBet ? 'animate-spin' : ''}/>  Auto
               </Button>
             </div>
             {selectedOption && (
@@ -106,8 +127,9 @@ export default function GreedyPage() {
           </div>
         </div>
 
-        {/* Side */}
+        {/* Side column */}
         <div className="w-full lg:w-64 space-y-3">
+          {/* Round Stats */}
           <div className="dl-card rounded-2xl p-4">
             <h3 className="font-black text-sm mb-3 flex items-center gap-2 text-[rgba(255,255,255,0.7)]"><BarChart2 size={14}/> Round Stats</h3>
             <div className="space-y-2">
@@ -124,6 +146,32 @@ export default function GreedyPage() {
             </div>
           </div>
 
+          {/* Today's Earnings (BRD G2-UI-06) */}
+          <div className="dl-card rounded-2xl p-4">
+            <h3 className="font-black text-sm mb-3 flex items-center gap-2 text-[rgba(255,255,255,0.7)]">
+              <TrendingUp size={14} className="text-[#00e676]"/> Today&apos;s Earnings
+            </h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-[rgba(255,255,255,0.4)]">Net</span>
+                <span className={`font-black ${(todayStats?.todayEarnings ?? 0) >= 0 ? 'text-[#00e676]' : 'text-[#ff3d57]'}`}>
+                  {todayStats
+                    ? `${todayStats.todayEarnings >= 0 ? '+' : ''}🪙${formatTokens(todayStats.todayEarnings)}`
+                    : '—'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[rgba(255,255,255,0.4)]">Won</span>
+                <span className="font-bold text-[#ffd700]">🪙{formatTokens(todayStats?.todayWon ?? 0)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[rgba(255,255,255,0.4)]">Bets</span>
+                <span className="font-bold text-white">{todayStats?.todayBetCount ?? 0}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Live bet breakdown */}
           <div className="dl-card rounded-2xl p-4">
             <h3 className="font-black text-sm mb-3 text-[rgba(255,255,255,0.7)]">Current Bets</h3>
             <div className="space-y-1.5 max-h-52 overflow-y-auto">

@@ -113,6 +113,12 @@ export const playerApi = {
       body: JSON.stringify({ packageId }),
     }),
   getPackages: () => apiFetch<TokenPackage[]>('/games/player/packages', { skipAuth: true }),
+  getTodayStats: () => apiFetch<TodayStats>('/games/player/today-stats'),
+};
+
+export const recentResultsApi = {
+  get: (gameId: string, limit = 10) =>
+    apiFetch<RecentResult[]>(`/games/${gameId}/results/recent?limit=${limit}`),
 };
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
@@ -399,6 +405,39 @@ export const superAdminApi = {
   getStats: () => apiFetch<PlatformStats>('/superadmin/stats'),
 };
 
+export interface AdminAuthorizationRequest {
+  id: string;
+  playerId: string;
+  requestedRole: string;
+  requestedPermissions: string | null;
+  notes: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  player?: { id: string; username: string; email: string; role: string };
+}
+
+export const adminAuthApi = {
+  request: (payload: { requestedRole?: string; requestedPermissions?: string[]; notes?: string }) =>
+    apiFetch<AdminAuthorizationRequest>('/admin-authorization/request', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  getRequests: () => apiFetch<AdminAuthorizationRequest[]>('/admin-authorization/requests'),
+  approve: (requestId: string, notes?: string) =>
+    apiFetch<AdminAuthorizationRequest>(`/admin-authorization/${requestId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ notes }),
+    }),
+  reject: (requestId: string, notes?: string) =>
+    apiFetch<AdminAuthorizationRequest>(`/admin-authorization/${requestId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ notes }),
+    }),
+};
+
 export interface DesignToken {
   id: string;
   scope: string;
@@ -445,4 +484,32 @@ export interface PlatformStats {
   designTokens: number;
   version: string;
   db: string;
+}
+
+export interface TodayStats {
+  todayEarnings: number;  // net (won - lost)
+  todayWon: number;
+  todayLost: number;
+  todayStaked: number;
+  todayBetCount: number;
+  allTimeWon: number;
+  allTimeLost: number;
+  balance: number;
+}
+
+export interface RecentResult {
+  id: string;
+  roundId: string;
+  winningOption: string;
+  winningOptionLabel: string;
+  winningOptionColor: string;
+  winningOptionMultiplier: number | null;
+  processedAt: string;
+  round: {
+    id: string;
+    roundNumber: number;
+    winnerId: string | null;
+    totalBetAmount: number;
+    settledAt: string | null;
+  };
 }

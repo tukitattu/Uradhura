@@ -13,15 +13,24 @@ import { Zap, History } from 'lucide-react';
 const SYMBOLS = ['🍒','🍋','🔔','💎','⭐','🎰','7️⃣','🃏'];
 const BETS = [1000,5000,10000,50000];
 
+// Map each game option by its sorted index to a fixed symbol, so the middle
+// reel always lands on the correct symbol when the round settles.
+function symbolForOption(options: import('@/lib/api').GameOption[], optionId: string | null | undefined): string {
+  if (!optionId) return SYMBOLS[0];
+  const idx = options.findIndex(o => o.id === optionId);
+  return SYMBOLS[idx >= 0 ? idx % SYMBOLS.length : 0];
+}
+
 function Reel({ spinning, finalSymbol, delay=0 }: { spinning:boolean;finalSymbol:string;delay?:number }) {
-  const [syms, setSyms] = useState(Array.from({length:3},()=>SYMBOLS[randomInt(0,SYMBOLS.length-1)]));
+  const [syms, setSyms] = useState(() => Array.from({length:3},()=>SYMBOLS[randomInt(0,SYMBOLS.length-1)]));
   const ref = useRef<NodeJS.Timeout>();
   useEffect(()=>{
     if (spinning) {
       ref.current=setInterval(()=>setSyms([SYMBOLS[randomInt(0,7)],SYMBOLS[randomInt(0,7)],SYMBOLS[randomInt(0,7)]]),80);
     } else {
       clearInterval(ref.current);
-      setTimeout(()=>setSyms([SYMBOLS[randomInt(0,7)],finalSymbol,SYMBOLS[randomInt(0,7)]]),delay);
+      // After stopping, set the middle row to the authoritative winner symbol
+      setTimeout(()=>setSyms([SYMBOLS[randomInt(0,7)], finalSymbol, SYMBOLS[randomInt(0,7)]]),delay);
     }
     return ()=>clearInterval(ref.current);
   },[spinning,finalSymbol,delay]);
@@ -50,6 +59,8 @@ export default function SlotPage() {
   const [betResult, setBetResult] = useState<{won:boolean;payout?:number;multiplier?:number}|null>(null);
   const [autoPlay, setAutoPlay] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  // Track the winning symbol so all 3 reels show the same authoritative result
+  const [winnerSymbol, setWinnerSymbol] = useState<string>(SYMBOLS[0]);
 
   useEffect(()=>{ if (!loading&&!player) router.push('/login'); },[player,loading,router]);
   useEffect(()=>{ gamesApi.get('slot').then(setGame).catch(()=>{}); },[]);
@@ -67,14 +78,23 @@ export default function SlotPage() {
       const didWin=selectedOption?.id===round.winnerId;
       const total=extraBet?betAmount*1.5:betAmount;
       setBetResult({won:didWin,payout:didWin?total*(winOpt?.multiplier||1):0,multiplier:winOpt?.multiplier});
+      // Resolve the winner symbol so all reels show the correct final face
+      if (winOpt && game) setWinnerSymbol(symbolForOption(game.options, round.winnerId));
       refreshBalance();
     }
   },[round?.status,round?.winnerId]);
 
   async function handleSpin(quick=false) {
     if (!round||!game) return;
+    // Auto-play stop condition: stop if balance would go below bet amount
+    const spinAmount = extraBet ? Math.floor(betAmount*1.5) : betAmount;
+    if ((player?.balance ?? 0) < spinAmount) {
+      setAutoPlay(false);
+      alert('Auto Play stopped: insufficient balance for next spin.');
+      return;
+    }
     const option=selectedOption||game.options[randomInt(0,game.options.length-1)];
-    const amount=extraBet?Math.floor(betAmount*1.5):betAmount;
+    const amount=spinAmount;
     try {
       setSpinning(true);
       await placeBet(option.id,amount);
@@ -93,7 +113,7 @@ export default function SlotPage() {
   if (!player||!game) return null;
 
   return (
-    <GameLayout title={game.branding?.displayName || 'Slot Machine'} branding={game.branding} balance={balance} roundNumber={round?.roundNumber}>
+    <GameLayout title={game.branding?.displayName || 'Slot Machine'} branding={game.branding} balance={balance} roundNumber={round?.roundNumber} gameSlug="slot">
       <div className="flex flex-col items-center gap-4 p-4 max-w-lg mx-auto w-full flex-1">
         {round&&<StatusBanner status={round.status} winnerId={round.winnerId} winnerLabel={winOption?.label}/>}
 
@@ -117,7 +137,7 @@ export default function SlotPage() {
           <div className="flex justify-center gap-3 mb-4">
             {[0,1,2].map(i=>(
               <Reel key={i} spinning={spinning}
-                finalSymbol={SYMBOLS[game.options.findIndex(o=>o.id===round?.winnerId)%SYMBOLS.length]||'🍒'}
+                finalSymbol={winnerSymbol}
                 delay={i*300}/>
             ))}
           </div>
@@ -163,11 +183,11 @@ export default function SlotPage() {
           </div>
 
           <div className="flex gap-2">
-            <Button onClick={()=>handleSpin(true)} disabled={!canSpin} loading={spinning||betting} variant="gold" className="flex-1" size="lg">
-              <Zap size={16}/> Quick Spin
+            <Button onClick={() => handleSpin(true)} disabled={!canSpin} loading={spinning || betting} variant="gold" className="flex-1" size="lg">
+              <Zap size={16} /> Quick Spin
             </Button>
-            <Button onClick={()=>handleSpin()} disabled={!canSpin} variant="primary" size="lg">SPIN</Button>
-            <Button onClick={()=>setAutoPlay(!autoPlay)} variant={autoPlay?'primary':'ghost'} size="lg">Auto</Button>
+            <Button onClick={() => handleSpin()} disabled={!canSpin} variant="primary" size="lg">SPIN</Button>
+            <Button onClick={() => setAutoPlay(!autoPlay)} variant={autoPlay ? 'primary' : 'ghost'} size="lg">Auto</Button>
           </div>
 
           {myBetThisRound===round?.id&&(

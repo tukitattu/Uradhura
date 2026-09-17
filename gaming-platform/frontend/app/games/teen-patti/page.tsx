@@ -9,6 +9,9 @@ import Button from '@/components/ui/Button';
 import { formatTokens, dealCards } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
+// BRD G3-UI-05: chip denominations per spec are 20, 100, 500, 1K.
+// These are intentionally lower than the wheel games (which use 1K–100K)
+// because Teen Patti is a card-table game with smaller default stakes.
 const CHIP_AMOUNTS = [20, 100, 500, 1000];
 const POS_COLORS: Record<string,{grad:string;border:string;glow:string}> = {
   'Player A': { grad:'from-[#4a0010] to-[#2a000a]', border:'border-[rgba(255,61,87,0.6)]',  glow:'rgba(255,61,87,0.5)' },
@@ -80,6 +83,10 @@ export default function TeenPattiPage() {
 
   async function handleBet(optionId:string) {
     if (!round) return;
+    if ((player?.balance ?? 0) < betAmount) {
+      alert('Insufficient balance to place this bet.');
+      return;
+    }
     try {
       await placeBet(optionId, betAmount);
       setMyBetThisRound(round.id); setSelectedPosition(optionId);
@@ -92,7 +99,7 @@ export default function TeenPattiPage() {
   if (!player || !game) return null;
 
   return (
-    <GameLayout title={game.branding?.displayName || 'Teen Patti'} branding={game.branding} balance={balance} roundNumber={round?.roundNumber}>
+    <GameLayout title={game.branding?.displayName || 'Teen Patti'} branding={game.branding} balance={balance} roundNumber={round?.roundNumber} gameSlug="teen-patti">
       <div className="flex flex-col items-center gap-4 p-4 max-w-2xl mx-auto w-full flex-1">
         {round && <StatusBanner status={round.status} winnerId={round.winnerId} winnerLabel={game.options.find(o=>o.id===round.winnerId)?.label}/>}
 
@@ -154,23 +161,29 @@ export default function TeenPattiPage() {
         <div className="w-full dl-card rounded-2xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-[rgba(255,255,255,0.4)] uppercase tracking-wide">Select Chip</span>
-            <span className="text-sm font-black text-[#ffd700]">Selected: {betAmount}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-[rgba(255,255,255,0.35)]">Selected: {betAmount}</span>
+              <span className="text-xs font-black text-[#ffd700]">🪙{formatTokens(player.balance)}</span>
+            </div>
           </div>
           <div className="flex gap-3 justify-center">
             {CHIP_AMOUNTS.map(c=>(
               <button key={c} onClick={()=>setBetAmount(c)}
+                disabled={(player?.balance ?? 0) < c}
                 className={cn(
                   'w-14 h-14 rounded-full border-4 font-black text-xs transition-all',
                   betAmount===c
                     ? 'border-[#ffd700] bg-gradient-to-b from-[#ffd700] to-[#ff8c00] text-[#1a0028] scale-110 glow-gold'
-                    : 'border-[rgba(61,17,85,0.8)] bg-[rgba(255,255,255,0.04)] text-white hover:border-[rgba(255,215,0,0.4)]'
+                    : (player?.balance ?? 0) < c
+                      ? 'border-[rgba(61,17,85,0.4)] bg-[rgba(255,255,255,0.02)] text-[rgba(255,255,255,0.2)] cursor-not-allowed'
+                      : 'border-[rgba(61,17,85,0.8)] bg-[rgba(255,255,255,0.04)] text-white hover:border-[rgba(255,215,0,0.4)]'
                 )}>
                 {c>=1000?`${c/1000}K`:c}
               </button>
             ))}
           </div>
           {lastBet && (
-            <Button onClick={()=>handleBet(lastBet.optionId)} disabled={round?.status!=='BETTING_OPEN'||myBetThisRound===round?.id} loading={betting} variant="ghost" className="w-full">
+            <Button onClick={()=>handleBet(lastBet.optionId)} disabled={round?.status !== 'BETTING_OPEN' || myBetThisRound === round?.id} loading={betting} variant="ghost" className="w-full">
               🔄 Repeat — {game.options.find(o=>o.id===lastBet.optionId)?.label} · {lastBet.amount}
             </Button>
           )}

@@ -16,6 +16,8 @@ import {
   getPublicPackages,
   demoTopUp,
   getPublicDesignTokens,
+  getRecentResults,
+  getTodayStats,
 } from '../controllers/game.controller';
 
 const router = Router();
@@ -30,6 +32,7 @@ router.get('/player/bets', authenticate, getMyBets);
 router.get('/player/wallet', authenticate, getWallet);
 router.get('/player/packages', getPublicPackages);
 router.post('/player/topup', authenticate, demoTopUp);
+router.get('/player/today-stats', authenticate, getTodayStats);
 
 // Public game info
 router.get('/', listGames);
@@ -38,6 +41,7 @@ router.get('/design-tokens', getPublicDesignTokens);
 // Round management (player reads, admin writes)
 router.get('/:gameId/round', authenticate, getActiveRound);
 router.get('/:gameId/history', authenticate, getHistory);
+router.get('/:gameId/results/recent', authenticate, getRecentResults);
 router.post('/:gameId/round', authenticate, requireAdmin, startRound);
 
 // Wildcard LAST — must come after all specific routes

@@ -3,14 +3,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useRound } from '@/hooks/useRound';
-import { gamesApi, type Game } from '@/lib/api';
+import { gamesApi, playerApi, type Game, type TodayStats } from '@/lib/api';
 import GameLayout, { CountdownTimer, BetDenominations, StatusBanner } from '@/components/games/GameLayout';
 import BettingWheel from '@/components/games/BettingWheel';
 import BetHistory from '@/components/games/BetHistory';
 import Button from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { formatTokens, formatMultiplier } from '@/lib/utils';
-import { Flame, History } from 'lucide-react';
+import { Flame, History, TrendingUp } from 'lucide-react';
 
 export default function AnimalWheelPage() {
   const { player, loading, refreshBalance } = useAuth();
@@ -23,14 +23,21 @@ export default function AnimalWheelPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [myBetThisRound, setMyBetThisRound] = useState<string|null>(null);
   const [recentResults, setRecentResults] = useState<string[]>([]);
+  const [todayStats, setTodayStats] = useState<TodayStats | null>(null);
 
   useEffect(() => { if (!loading && !player) router.push('/login'); }, [player, loading, router]);
   useEffect(() => { gamesApi.get('animal-wheel').then(setGame).catch(()=>{}); }, []);
+  useEffect(() => {
+    playerApi.getTodayStats().then(setTodayStats).catch(()=>{});
+  }, []);
 
   const { round, totals, countdown, betting, placeBet } = useRound({ gameId: game?.id || '' });
 
   useEffect(() => {
-    if (round?.status === 'BETTING_OPEN') { setBetResult(null); if (!autoBet) setSelectedOption(null); }
+    if (round?.status === 'BETTING_OPEN') {
+      setBetResult(null);
+      if (!autoBet) setSelectedOption(null);
+    }
   }, [round?.id]);
 
   useEffect(() => {
@@ -39,16 +46,29 @@ export default function AnimalWheelPage() {
       if (opt) setRecentResults(p=>[opt.label,...p].slice(0,10));
       if (myBetThisRound === round.id) {
         const didWin = selectedOption === round.winnerId;
-        setBetResult({ won:didWin, payout:didWin?betAmount*(opt?.multiplier||1):0, winnerLabel:opt?.label });
-        refreshBalance();
+        const payout = didWin ? betAmount*(opt?.multiplier||1) : 0;
+        setBetResult({ won:didWin, payout, winnerLabel:opt?.label });
+        refreshBalance().then(() => {
+          // Refresh today stats after settlement
+          playerApi.getTodayStats().then(setTodayStats).catch(()=>{});
+        });
       }
     }
   }, [round?.status, round?.winnerId]);
 
   async function handleBet() {
     if (!selectedOption || !round) return;
-    try { await placeBet(selectedOption, betAmount); setMyBetThisRound(round.id); await refreshBalance(); }
-    catch (err: unknown) { alert((err as Error).message); }
+    // Auto Bet stop condition (BRD G1-BR-05): stop if balance would go below stake
+    if ((player?.balance ?? 0) < betAmount) {
+      setAutoBet(false);
+      alert('Auto Bet stopped: insufficient balance.');
+      return;
+    }
+    try {
+      await placeBet(selectedOption, betAmount);
+      setMyBetThisRound(round.id);
+      await refreshBalance();
+    } catch (err: unknown) { alert((err as Error).message); }
   }
 
   useEffect(() => {
@@ -60,8 +80,9 @@ export default function AnimalWheelPage() {
   if (!player || !game) return null;
 
   return (
-    <GameLayout title={game.branding?.displayName || 'Animal Wheel'} branding={game.branding} balance={balance} roundNumber={round?.roundNumber}>
+    <GameLayout title={game.branding?.displayName || 'Animal Wheel'} branding={game.branding} balance={balance} roundNumber={round?.roundNumber} gameSlug="animal-wheel">
       <div className="flex flex-col lg:flex-row gap-4 p-4 flex-1">
+        {/* Main column */}
         <div className="flex-1 flex flex-col items-center gap-4 min-w-0">
           {round && <StatusBanner status={round.status} winnerId={round.winnerId} winnerLabel={game.options.find(o=>o.id===round.winnerId)?.label}/>}
 
@@ -87,28 +108,37 @@ export default function AnimalWheelPage() {
 
           <div className="mt-2 mb-8">
             <BettingWheel options={game.options} totals={totals} selectedOptionId={selectedOption}
-              onSelect={setSelectedOption} disabled={round?.status!=='BETTING_OPEN'||myBetThisRound===round?.id}
-              winnerId={round?.status==='SETTLED'?round.winnerId:null}
-              spinning={round?.status==='RESULT_PROCESSING'} centerEmoji="🐾" centerLabel="WILD"/>
+              onSelect={setSelectedOption} disabled={round?.status !== 'BETTING_OPEN' || myBetThisRound === round?.id}
+              winnerId={round?.status === 'SETTLED' ? round.winnerId : null}
+              spinning={round?.status === 'RESULT_PROCESSING'} centerEmoji="🐾" centerLabel="WILD"/>
           </div>
 
           {round && <div className="w-full max-w-[260px]"><CountdownTimer seconds={countdown} status={round.status}/></div>}
 
           <div className="w-full max-w-[420px] dl-card rounded-2xl p-4 space-y-3">
-            <BetDenominations selected={betAmount} onSelect={setBetAmount} disabled={round?.status!=='BETTING_OPEN'}/>
+            <BetDenominations selected={betAmount} onSelect={setBetAmount} disabled={round?.status !== 'BETTING_OPEN'}/>
             <div className="flex gap-2">
               <Button onClick={handleBet} disabled={!canBet} loading={betting} variant="gold" className="flex-1" size="lg">
                 {myBetThisRound===round?.id?'✓ Placed':selectedOption?`Bet 🪙${formatTokens(betAmount)}`:'Select option'}
               </Button>
-              <Button onClick={()=>setAutoBet(!autoBet)} variant={autoBet?'primary':'ghost'} size="lg">
+              <Button
+                onClick={() => {
+                  if (!autoBet && (player?.balance ?? 0) < betAmount) {
+                    alert('Insufficient balance to start Auto Bet.');
+                    return;
+                  }
+                  setAutoBet(!autoBet);
+                }}
+                variant={autoBet?'primary':'ghost'} size="lg">
                 Auto {autoBet?'ON':'OFF'}
               </Button>
             </div>
           </div>
         </div>
 
-        {/* Side */}
+        {/* Side column */}
         <div className="w-full lg:w-64 space-y-3">
+          {/* Hot options */}
           <div className="dl-card rounded-2xl p-4">
             <h3 className="font-black text-sm mb-3 flex items-center gap-1.5 text-[rgba(255,255,255,0.7)]">
               <Flame size={14} className="text-orange-400"/> Hot Options
@@ -126,14 +156,40 @@ export default function AnimalWheelPage() {
                   <span className="text-sm font-black text-[#ffd700]">{formatMultiplier(o.multiplier)}</span>
                 </button>
               ))}
-              {!game.options.filter(o=>o.isHot).length && <p className="text-xs text-[rgba(255,255,255,0.25)]">No hot options</p>}
+              {!game.options.filter(o=>o.isHot).length && <p className="text-xs text-[rgba(255,255,255,0.25)]">No hot options right now</p>}
             </div>
           </div>
 
+          {/* Stats panel — Today's Earnings (BRD G2-UI-06) */}
           <div className="dl-card rounded-2xl p-4">
+            <h3 className="font-black text-sm mb-3 flex items-center gap-1.5 text-[rgba(255,255,255,0.7)]">
+              <TrendingUp size={14} className="text-[#00e676]"/> Today&apos;s Earnings
+            </h3>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-[rgba(255,255,255,0.4)]">Balance</span><span className="font-black text-[#ffd700]">🪙 {formatTokens(balance)}</span></div>
-              <div className="flex justify-between"><span className="text-[rgba(255,255,255,0.4)]">Pool</span><span className="font-bold text-white">🪙 {formatTokens(round?.totalBetAmount||0)}</span></div>
+              <div className="flex justify-between">
+                <span className="text-[rgba(255,255,255,0.4)]">Net today</span>
+                <span className={`font-black ${(todayStats?.todayEarnings ?? 0) >= 0 ? 'text-[#00e676]' : 'text-[#ff3d57]'}`}>
+                  {todayStats
+                    ? `${(todayStats.todayEarnings >= 0 ? '+' : '')}🪙${formatTokens(todayStats.todayEarnings)}`
+                    : '—'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[rgba(255,255,255,0.4)]">Won today</span>
+                <span className="font-bold text-[#ffd700]">🪙{formatTokens(todayStats?.todayWon ?? 0)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[rgba(255,255,255,0.4)]">Bets today</span>
+                <span className="font-bold text-white">{todayStats?.todayBetCount ?? 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[rgba(255,255,255,0.4)]">Balance</span>
+                <span className="font-black text-[#ffd700]">🪙{formatTokens(balance)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[rgba(255,255,255,0.4)]">Pool</span>
+                <span className="font-bold text-white">🪙{formatTokens(round?.totalBetAmount||0)}</span>
+              </div>
             </div>
           </div>
 
