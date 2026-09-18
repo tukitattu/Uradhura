@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Uradhura Player</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = { darkMode: "class" };
+  </script>
+  <style>
+    :root { --bg: #0a0e17; --fg: #e8edf5; --muted: #6b7c9a; --accent: #00d4aa; --card: #111827; --border: #1e293b; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--fg); min-height: 100vh; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+    .navbar { padding: 1rem 0; border-bottom: 1px solid var(--border); }
+    .nav-link { color: var(--muted); text-decoration: none; margin-right: 1.5rem; font-weight: 500; transition: color 0.2s; }
+    .nav-link:hover { color: var(--accent); }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin: 1rem 0; }
+    .btn { padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 500; cursor: pointer; border: none; font-size: 0.95rem; transition: opacity 0.2s; }
+    .btn-primary { background: var(--accent); color: #0a0e17; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-secondary { background: var(--border); color: var(--fg); }
+    .btn-secondary:hover { opacity: 0.8; }
+    .section-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; }
+    .player-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin: 0.5rem 0; }
+    .status-online { color: var(--accent); }
+    .status-offline { color: #ff5f57; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <nav class="navbar">
+      <a href="#games" class="nav-link">Games</a>
+      <a href="#wallet" class="nav-link">Wallet</a>
+      <a href="#profile" class="nav-link">Profile</a>
+      <a href="#settings" class="nav-link">Settings</a>
+    </nav>
+
+    <main>
+      <section id="games" class="section-title">Games</section>
+      <div class="player-card">
+        <h3>Available Games</h3>
+        <ul>
+          <li>Greedy Monkey</li>
+          <li>Greedy Lion</li>
+          <li>Teen Patti</li>
+          <li>Food Wheel</li>
+          <li>Three-Player Card</li>
+          <li>Slot/Multiplier</li>
+        </ul>
+      </div>
+
+      <section id="wallet" class="section-title">Wallet</section>
+      <div class="player-card">
+        <h3>Balance</h3>
+        <p>Coins: --</p>
+        <p>Diamonds: --</p>
+        <button class="btn btn-primary">Refresh</button>
+      </div>
+
+      <section id="profile" class="section-title">Profile</section>
+      <div class="player-card">
+        <h3>Player Info</h3>
+        <p>Username: --</p>
+        <p>Level: --</p>
+        <p>Join Date: --</p>
+      </div>
+
+      <section id="settings" class="section-title">Settings</section>
+      <div class="player-card">
+        <h3>Preferences</h3>
+        <p>Notifications: --</p>
+        <p>Theme: --</p>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { QueryClient, QueryProvider } from "https://cdn.skypack.dev/@tanstack/react-query";
+    import { io } from "https://cdn.skypack.dev/socket.io-client";
+
+    const queryClient = new QueryClient();
+
+    document.addEventListener("DOMContentLoaded", () => {
+      // Socket.io events
+      const socket = io("http://localhost:4000");
+
+      socket.on("connect", () => {
+        console.log("Connected to server");
+      });
+
+      socket.on("balance_update", (data) => {
+        console.log("Balance updated:", data);
+      });
+    });
+  </script>
+</body>
+</html>

@@ -376,6 +376,28 @@ export interface AuditLog {
   createdAt: string;
 }
 
+// ─── Admin Settings ───────────────────────────────────────────────────────────
+
+export const settingsApi = {
+  getAll: () => apiFetch<Record<string, SettingsGroup>>('/settings'),
+  getByCategory: (category: string) => apiFetch<SettingsEntry[]>(`/settings/${category}`),
+  update: (settings: Record<string, unknown>) =>
+    apiFetch('/settings', { method: 'PUT', body: JSON.stringify({ settings }) }),
+  reset: (category?: string) =>
+    apiFetch('/settings/reset', { method: 'POST', body: JSON.stringify({ category }) }),
+};
+
+export interface SettingsEntry {
+  key: string;
+  value: unknown;
+  category: string;
+  description: string;
+  source?: string;
+  updatedAt?: string;
+}
+
+export type SettingsGroup = SettingsEntry[];
+
 // ─── Super Admin ──────────────────────────────────────────────────────────────
 
 export const superAdminApi = {
@@ -403,6 +425,60 @@ export const superAdminApi = {
 
   // Stats
   getStats: () => apiFetch<PlatformStats>('/superadmin/stats'),
+
+  // Account management
+  listAccounts: (page = 1, role?: string) =>
+    apiFetch<{ accounts: AdminAccountEntry[]; total: number; page: number; limit: number }>(
+      `/superadmin/accounts?page=${page}${role ? `&role=${role}` : ''}`
+    ),
+  createAccount: (data: { username: string; email: string; password: string; role: string }) =>
+    apiFetch<AdminAccountEntry>('/superadmin/accounts', { method: 'POST', body: JSON.stringify(data) }),
+  setRole: (playerId: string, role: string) =>
+    apiFetch(`/superadmin/accounts/${playerId}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  setStatus: (playerId: string, isActive: boolean) =>
+    apiFetch(`/superadmin/accounts/${playerId}/status`, { method: 'PATCH', body: JSON.stringify({ isActive }) }),
+  listAdminRequests: (status?: string) =>
+    apiFetch<AdminAuthorizationRequest[]>(`/superadmin/admin-requests${status ? `?status=${status}` : ''}`),
+  approveRequest: (requestId: string, notes?: string) =>
+    apiFetch(`/superadmin/admin-requests/${requestId}/approve`, { method: 'POST', body: JSON.stringify({ notes }) }),
+  rejectRequest: (requestId: string, notes?: string) =>
+    apiFetch(`/superadmin/admin-requests/${requestId}/reject`, { method: 'POST', body: JSON.stringify({ notes }) }),
+
+  // Game CRUD
+  createGame: (data: { name: string; slug: string; description?: string; sortOrder?: number }) =>
+    apiFetch<Game>('/superadmin/games', { method: 'POST', body: JSON.stringify(data) }),
+  deleteGameSA: (gameId: string) =>
+    apiFetch(`/superadmin/games/${gameId}`, { method: 'DELETE' }),
+  updateSortOrder: (gameId: string, sortOrder: number) =>
+    apiFetch(`/superadmin/games/${gameId}/sort-order`, { method: 'PATCH', body: JSON.stringify({ sortOrder }) }),
+  getDenominations: (gameId: string) =>
+    apiFetch<GameDenominationConfig>(`/superadmin/games/${gameId}/denominations`),
+  saveDenominations: (gameId: string, data: { denominations: string; minBet: number; maxBet: number }) =>
+    apiFetch<GameDenominationConfig>(`/superadmin/games/${gameId}/denominations`, { method: 'PUT', body: JSON.stringify(data) }),
+  listPackages: (gameId: string) =>
+    apiFetch<GamePackage[]>(`/superadmin/games/${gameId}/packages`),
+  savePackage: (gameId: string, data: Partial<GamePackage>) =>
+    apiFetch<GamePackage>(`/superadmin/games/${gameId}/packages`, { method: 'POST', body: JSON.stringify(data) }),
+  deletePackage: (gameId: string, packageId: string) =>
+    apiFetch(`/superadmin/games/${gameId}/packages/${packageId}`, { method: 'DELETE' }),
+
+  // Health
+  getHealth: () => apiFetch<ServiceHealth>('/superadmin/health'),
+  getHealthHistory: (limit = 20) => apiFetch<ServiceHealthSnapshot[]>(`/superadmin/health/history?limit=${limit}`),
+
+  // Payment
+  listPaymentConfigs: () => apiFetch<PaymentGatewayConfig[]>('/superadmin/payment-configs'),
+  savePaymentConfig: (data: Partial<PaymentGatewayConfig>) =>
+    apiFetch<PaymentGatewayConfig>('/superadmin/payment-configs', { method: 'POST', body: JSON.stringify(data) }),
+  listPaymentOrders: (page = 1, status?: string) =>
+    apiFetch<{ orders: PaymentOrder[]; total: number }>(`/superadmin/payment-orders?page=${page}${status ? `&status=${status}` : ''}`),
+
+  // Video call
+  listVideoAccess: () => apiFetch<VideoCallAccess[]>('/superadmin/video-access'),
+  grantVideoAccess: (data: { playerId: string; channelName?: string; role?: string; notes?: string }) =>
+    apiFetch<VideoCallAccess>('/superadmin/video-access', { method: 'POST', body: JSON.stringify(data) }),
+  revokeVideoAccess: (playerId: string) =>
+    apiFetch(`/superadmin/video-access/${playerId}`, { method: 'DELETE' }),
 };
 
 export interface AdminAuthorizationRequest {
@@ -436,6 +512,39 @@ export const adminAuthApi = {
       method: 'POST',
       body: JSON.stringify({ notes }),
     }),
+};
+
+// ─── Video Call ───────────────────────────────────────────────────────────────
+
+export const videoApi = {
+  getToken: () => apiFetch<VideoCallToken>('/video/token'),
+};
+
+// ─── Payments (player-facing) ─────────────────────────────────────────────────
+
+export const paymentApi = {
+  initiate: (packageId: string, provider: string) =>
+    apiFetch<{ orderId: string; checkoutUrl: string; status: string }>('/payments/initiate', {
+      method: 'POST',
+      body: JSON.stringify({ packageId, provider }),
+    }),
+  validateReceipt: (packageId: string, receipt: string, platform: 'ios' | 'android') =>
+    apiFetch<{ orderId: string; tokensAdded: number }>('/payments/validate-receipt', {
+      method: 'POST',
+      body: JSON.stringify({ packageId, receipt, platform }),
+    }),
+  purchase: (packageId: string, paymentMethod: string, reference?: string) =>
+    apiFetch<{ orderId: string; status: string; amountCents: number; tokenAmount: number; paymentMethod: string; instructions: string }>(
+      '/payments/custom/purchase', {
+        method: 'POST',
+        body: JSON.stringify({ packageId, paymentMethod, reference }),
+      }),
+  getMyOrders: (page = 1) =>
+    apiFetch<{ orders: PaymentOrder[]; total: number }>(`/payments/custom/my-orders?page=${page}`),
+  confirm: (orderId: string, notes?: string) =>
+    apiFetch(`/payments/custom/confirm/${orderId}`, { method: 'POST', body: JSON.stringify({ notes }) }),
+  cancel: (orderId: string, reason?: string) =>
+    apiFetch(`/payments/custom/cancel/${orderId}`, { method: 'POST', body: JSON.stringify({ reason }) }),
 };
 
 export interface DesignToken {
@@ -512,4 +621,203 @@ export interface RecentResult {
     totalBetAmount: number;
     settledAt: string | null;
   };
+}
+
+export interface AdminAccountEntry {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  balance: number;
+  hasVideoAccess: boolean;
+}
+
+export interface GameDenominationConfig {
+  gameId: string;
+  denominations: string; // JSON array string
+  minBet: number;
+  maxBet: number;
+}
+
+export interface GamePackage {
+  id: string;
+  gameId: string;
+  name: string;
+  optionLabels: string; // JSON array string
+  price: number;
+  multiplier: number;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface ServiceHealth {
+  uptimeSeconds: number;
+  dbPingMs: number;
+  dbOk: boolean;
+  memUsedMb: number;
+  memTotalMb: number;
+  rssMb: number;
+  nodeVersion: string;
+  environment: string;
+  pendingMigrations: number;
+  responseMs: number;
+  apiVersion: string;
+  timestamp: string;
+}
+
+export interface ServiceHealthSnapshot {
+  id: string;
+  uptimeSeconds: number;
+  dbPingMs: number;
+  memUsedMb: number;
+  memTotalMb: number;
+  nodeVersion: string;
+  environment: string;
+  pendingMigrations: number;
+  recordedAt: string;
+}
+
+export interface PaymentGatewayConfig {
+  id: string;
+  provider: string;
+  isEnabled: boolean;
+  publicKey: string | null;
+  webhookSecret: string | null;
+  webhookUrl: string | null;
+  metadata: string;
+  updatedBy: string | null;
+  updatedAt: string;
+}
+
+export interface PaymentOrder {
+  id: string;
+  playerId: string;
+  packageId: string | null;
+  provider: string;
+  externalOrderId: string | null;
+  currency: string;
+  amountCents: number;
+  tokenAmount: number;
+  status: string;
+  createdAt: string;
+  player?: { id: string; username: string; email: string };
+}
+
+export interface VideoCallAccess {
+  id: string;
+  playerId: string;
+  grantedBy: string;
+  channelName: string;
+  role: string;
+  isActive: boolean;
+  notes: string | null;
+  createdAt: string;
+  player?: { id: string; username: string; email: string; role: string };
+}
+
+export interface VideoCallToken {
+  token: string;
+  appId: string;
+  channelName: string;
+  uid: number;
+  role: string;
+  expiresAt: string;
+  isStub: boolean;
+}
+
+// ─── Support ──────────────────────────────────────────────────────────────────
+
+export const supportApi = {
+  createTicket: (subject: string, description: string, category?: string, priority?: string) =>
+    apiFetch<SupportTicket>('/support', {
+      method: 'POST',
+      body: JSON.stringify({ subject, description, category, priority }),
+    }),
+  myTickets: (page = 1) =>
+    apiFetch<{ tickets: SupportTicket[]; total: number }>(`/support/my?page=${page}`),
+  getTicket: (ticketId: string) =>
+    apiFetch<SupportTicketDetail>(`/support/${ticketId}`),
+  reply: (ticketId: string, message: string, isInternal?: boolean) =>
+    apiFetch<SupportMessage>(`/support/${ticketId}/reply`, {
+      method: 'POST',
+      body: JSON.stringify({ message, isInternal }),
+    }),
+  allTickets: (page = 1, status?: string, category?: string) => {
+    const params = new URLSearchParams({ page: String(page) });
+    if (status) params.set('status', status);
+    if (category) params.set('category', category);
+    return apiFetch<{ tickets: SupportTicketDetail[]; total: number }>(`/support/admin/all?${params}`);
+  },
+  updateTicketStatus: (ticketId: string, status: string, assignedTo?: string) =>
+    apiFetch(`/support/admin/${ticketId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, assignedTo }),
+    }),
+};
+
+// ─── Permissions (Superadmin) ─────────────────────────────────────────────────
+
+export const permissionApi = {
+  grant: (adminId: string, permission: string, scope: string, expiresAt?: string, notes?: string) =>
+    apiFetch<AdminPermission>('/permissions/grant', {
+      method: 'POST',
+      body: JSON.stringify({ adminId, permission, scope, expiresAt, notes }),
+    }),
+  revoke: (adminId: string, permission: string) =>
+    apiFetch(`/permissions/${adminId}/${permission}`, { method: 'DELETE' }),
+  list: (adminId: string) =>
+    apiFetch<AdminPermission[]>(`/permissions/${adminId}`),
+  grantPreset: (adminId: string, preset: string, gameSlug?: string) =>
+    apiFetch<{ granted: number }>('/permissions/preset', {
+      method: 'POST',
+      body: JSON.stringify({ adminId, preset, gameSlug }),
+    }),
+  check: (permission: string) =>
+    apiFetch<{ permission: string; allowed: boolean }>(`/permissions/check?permission=${permission}`),
+  presets: () =>
+    apiFetch<Array<{ name: string; description: string }>>('/permissions/presets'),
+};
+
+// ─── Support & Permission Types ───────────────────────────────────────────────
+
+export interface SupportTicket {
+  id: string;
+  playerId: string;
+  subject: string;
+  description: string;
+  category: string;
+  priority: string;
+  status: string;
+  assignedTo: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+}
+
+export interface SupportTicketDetail extends SupportTicket {
+  player: { id: string; username: string; email: string };
+  messages: SupportMessage[];
+}
+
+export interface SupportMessage {
+  id: string;
+  ticketId: string;
+  senderId: string;
+  senderType: string;
+  message: string;
+  isInternal: boolean;
+  createdAt: string;
+}
+
+export interface AdminPermission {
+  id: string;
+  adminId: string;
+  permission: string;
+  scope: string;
+  grantedBy: string;
+  isActive: boolean;
+  expiresAt: string | null;
+  notes: string | null;
+  createdAt: string;
 }

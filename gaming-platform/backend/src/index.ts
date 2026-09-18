@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import http from 'http';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -8,6 +9,7 @@ import { attachRequestId } from './middleware/auth';
 import routes from './routes';
 import logger from './utils/logger';
 import { startScheduler } from './services/scheduler.service';
+import { initWebSocket } from './services/websocket.service';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -58,8 +60,13 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
+// Create HTTP server and attach WebSocket
+const httpServer = http.createServer(app);
+initWebSocket(httpServer);
+
+httpServer.listen(PORT, () => {
   logger.info(`🎮 Gaming Platform API running on http://localhost:${PORT}`);
+  logger.info(`🔌 WebSocket server attached`);
   // Start the round scheduler after the server is up
   startScheduler();
 });

@@ -23,6 +23,8 @@ model Player {
   adminRequests    AdminAuthorizationRequest[]
   videoCallAccess  VideoCallAccess?
   paymentOrders    PaymentOrder[]
+  adminPermissions AdminPermission[]
+  supportTickets   SupportTicket[]
 
   @@map("players")
 }
@@ -412,4 +414,75 @@ model ServiceHealthSnapshot {
   recordedAt      DateTime @default(now())
 
   @@map("service_health_snapshots")
+}
+
+// ─── Admin Permissions (SaaS Model) ──────────────────────────────────────────
+// Superadmin grants granular permissions to admin accounts.
+// Each admin can have per-game access, settings modification, feature flags, etc.
+
+model AdminPermission {
+  id            String   @id @default(uuid())
+  adminId       String   // Player ID of the admin
+  permission    String   // e.g. "game:greedy:manage", "settings:platform:edit", "features:manage"
+  scope         String   // "game" | "settings" | "features" | "players" | "reports" | "payments" | "support"
+  grantedBy     String   // super_admin player ID
+  isActive      Boolean  @default(true)
+  expiresAt     DateTime? // optional expiry
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  admin         Player   @relation(fields: [adminId], references: [id])
+
+  @@unique([adminId, permission])
+  @@map("admin_permissions")
+}
+
+// ─── Support Tickets ──────────────────────────────────────────────────────────
+model SupportTicket {
+  id            String   @id @default(uuid())
+  playerId      String
+  subject       String
+  description   String
+  category      String   @default("general") // general | payment | game_issue | account | technical
+  priority      String   @default("medium")  // low | medium | high | urgent
+  status        String   @default("open")    // open | in_progress | resolved | closed
+  assignedTo    String?  // admin player ID
+  assignedAt    DateTime?
+  resolvedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  player        Player   @relation(fields: [playerId], references: [id])
+  messages      SupportMessage[]
+
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id            String   @id @default(uuid())
+  ticketId      String
+  senderId      String   // player or admin ID
+  senderType    String   @default("player") // player | admin | system
+  message       String
+  isInternal    Boolean  @default(false) // internal admin notes not visible to player
+  createdAt     DateTime @default(now())
+
+  ticket        SupportTicket @relation(fields: [ticketId], references: [id])
+
+  @@map("support_messages")
+}
+
+// ─── Platform Settings ────────────────────────────────────────────────────────
+model PlatformSetting {
+  id            String   @id @default(uuid())
+  key           String   @unique
+  value         String   // JSON string
+  category      String   @default("general") // general | security | notifications | appearance | game_defaults
+  description   String?
+  updatedBy     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("platform_settings")
 }

@@ -1,0 +1,76 @@
+# ============================================================
+# GAMING PLATFORM — NEXT.JS ADMIN DOCKERFILE
+# Multi-stage build for production
+# ============================================================
+
+# ----------------------------------------------------------
+# Stage 1: Builder — install deps, build Next.js app
+# ----------------------------------------------------------
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apk add --no-cache python3 make g++
+
+# Copy package files for layer caching
+COPY apps/admin/package.json apps/admin/package-lock.json* ./
+
+# Install all dependencies
+RUN npm ci
+
+# Copy config files
+COPY apps/admin/tsconfig.json tsconfig.json
+COPY apps/admin/next.config.js next.config.js
+COPY apps/admin/tailwind.config.* ./
+COPY apps/admin/postcss.config.* ./
+
+# Copy application source
+COPY apps/admin/src ./src
+COPY apps/admin/public ./public
+COPY apps/admin/app ./app
+
+# Build the Next.js application
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+# Prune devDependencies
+RUN npm prune --production
+
+# ----------------------------------------------------------
+# Stage 2: Runner — lean production image
+# ----------------------------------------------------------
+FROM node:20-alpine AS runner
+
+# Security: run as non-root
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -S appuser -u 1001 -G appgroup
+
+WORKDIR /app
+
+# Copy only production artifacts
+COPY --from=builder --chown=appuser:appgroup /app/.next ./.next
+COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
+COPY --from=builder --chown=appuser:appgroup /app/package.json ./package.json
+COPY --from=builder --chown=appuser:appgroup /app/next.config.js ./next.config.js
+
+# Copy public assets
+COPY --from=builder --chown=appuser:appgroup /app/public ./public
+
+# Set environment
+ENV NODE_ENV=production
+ENV PORT=3001
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Expose admin port
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
+
+# Switch to non-root user
+USER appuser
+
+# Start the application
+CMD ["npm", "start"]

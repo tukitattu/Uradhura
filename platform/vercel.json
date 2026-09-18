@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "projects": [
+    {
+      "name": "uradhura-api",
+      "directory": "apps/api",
+      "framework": "express",
+      "buildCommand": "npm run build",
+      "startCommand": "node dist/main.js",
+      "frameworkSettings": {
+        "runtime": "nodejs20.x"
+      }
+    },
+    {
+      "name": "uradhura-admin",
+      "directory": "apps/admin",
+      "framework": "nextjs",
+      "buildCommand": "npm run build",
+      "startCommand": "npx next start -p 3001",
+      "env": { "NODE_ENV": "production" }
+    },
+    {
+      "name": "uradhura-player",
+      "directory": "apps/player",
+      "framework": "static",
+      "buildCommand": "echo 'Static HTML app - no build needed'",
+      "frameworkSettings": {
+        "static": {
+          "distDirectory": ".",
+          "functionOutput": "plain"
+        }
+      }
+    }
+  ]
+}

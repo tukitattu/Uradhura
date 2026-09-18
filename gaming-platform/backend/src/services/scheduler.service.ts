@@ -9,6 +9,7 @@ import prisma from '../config/database';
 import { closeBetting, setRoundResult, settleRound, createRound } from './round.service';
 import { createAuditLog } from './audit.service';
 import logger from '../utils/logger';
+import { emitRoundCreated, emitBettingClosed, emitResultSet, emitRoundSettled } from './websocket.service';
 
 const RESULT_PROCESSING_DELAY_MS = 5_000;
 const NEW_ROUND_DELAY_MS = 3_000;
@@ -57,6 +58,7 @@ async function processOpenRounds() {
       try {
         logger.info(`[Scheduler] Closing betting: round ${round.roundNumber} (${round.game.slug})`);
         await closeBetting(round.id);
+        emitBettingClosed(round.gameId, round.id);
 
         const options = round.game.options;
         if (!options.length) return;
@@ -66,9 +68,22 @@ async function processOpenRounds() {
         await setRoundResult(round.id, winnerId, { source: 'scheduler', ts: Date.now() }, 'system');
         logger.info(`[Scheduler] Result set: round ${round.roundNumber}, winner=${winnerId}`);
 
+        // Fetch the winner option label for the WebSocket event
+        const winnerOption = options.find((o) => o.id === winnerId);
+        emitResultSet(round.gameId, round.id, {
+          winnerId,
+          winningOptionLabel: winnerOption?.label ?? '',
+          resultData: JSON.stringify({ source: 'scheduler', ts: Date.now() }),
+        });
+
         await delay(RESULT_PROCESSING_DELAY_MS);
         const settlement = await settleRound(round.id);
         logger.info(`[Scheduler] Settled: round ${round.roundNumber}, ${settlement.settled} bets, payout=${settlement.totalPayout}`);
+        emitRoundSettled(round.gameId, round.id, {
+          winnerId,
+          totalPayout: settlement.totalPayout,
+          settledBets: settlement.settled,
+        });
 
         await delay(NEW_ROUND_DELAY_MS);
         const newRoundConfig = await prisma.gameConfiguration.findFirst({
@@ -78,6 +93,19 @@ async function processOpenRounds() {
         const newRoundDuration = newRoundConfigData.bettingDurationSeconds ?? DEFAULT_BETTING_DURATION_S;
         await createRound(round.gameId, newRoundDuration);
         logger.info(`[Scheduler] New round created for ${round.game.slug}`);
+
+        // Emit WebSocket event for the new round
+        const newRound = await prisma.gameRound.findFirst({
+          where: { gameId: round.gameId, status: 'BETTING_OPEN' },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (newRound) {
+          emitRoundCreated(round.gameId, {
+            roundId: newRound.id,
+            roundNumber: newRound.roundNumber,
+            bettingEndsAt: newRound.bettingEndsAt?.toISOString() ?? '',
+          });
+        }
       } catch (err) {
         logger.error(`[Scheduler] Error on round ${round.id}:`, err);
         await createAuditLog({
@@ -108,6 +136,19 @@ async function ensureActiveRounds() {
         const gameDuration = gameConfigData.bettingDurationSeconds ?? DEFAULT_BETTING_DURATION_S;
         await createRound(game.id, gameDuration);
         logger.info(`[Scheduler] Created initial round for ${game.slug}`);
+
+        // Emit WebSocket event for the new initial round
+        const newRound = await prisma.gameRound.findFirst({
+          where: { gameId: game.id, status: 'BETTING_OPEN' },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (newRound) {
+          emitRoundCreated(game.id, {
+            roundId: newRound.id,
+            roundNumber: newRound.roundNumber,
+            bettingEndsAt: newRound.bettingEndsAt?.toISOString() ?? '',
+          });
+        }
       } catch (err) {
         logger.error(`[Scheduler] Failed to create round for ${game.slug}:`, err);
       }

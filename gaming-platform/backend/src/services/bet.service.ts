@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import prisma from '../config/database';
 import { debitWallet, WalletError } from './wallet.service';
 import { createAuditLog } from './audit.service';
+import { emitBetPlaced, emitBalanceUpdate } from './websocket.service';
 
 export class BetError extends Error {
   constructor(message: string, public code: string) {
@@ -131,6 +132,21 @@ export async function placeBet(input: PlaceBetInput): Promise<object> {
     entityId: bet.id,
     after: { roundId, optionId, amount },
   });
+
+  // Emit WebSocket events
+  emitBetPlaced(round.gameId, roundId, {
+    betId: bet.id,
+    playerId,
+    optionId,
+    amount,
+    newTotalBetAmount: round.totalBetAmount + amount,
+  });
+
+  // Fetch updated wallet balance and emit
+  const wallet = await prisma.walletAccount.findFirst({ where: { playerId } });
+  if (wallet) {
+    emitBalanceUpdate(playerId, wallet.balance);
+  }
 
   return bet;
 }
