@@ -6,3 +6,4 @@ disown
 sleep 2
 echo "Verifying..."
 curl -s http://localhost:4002/api/v1/health
+

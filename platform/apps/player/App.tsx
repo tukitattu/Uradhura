@@ -1,8 +1,11 @@
-import React from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createBrowserRouter, RouterProvider } from "@react-router/vercel";
-import axios from "axios";
-import { io } from "socket.io-client";
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import AppNavigator from './src/navigation/AppNavigator';
+import { AuthProvider } from './src/contexts/AuthContext';
+import { SocketProvider } from './src/contexts/SocketContext';
+import { GameSocketProvider } from './src/contexts/GameSocketContext';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -13,20 +16,20 @@ const queryClient = new QueryClient({
   },
 });
 
-const socket = io("http://localhost:4000", {
-  transports: ["websocket"],
-});
-
-const router = createBrowserRouter();
-
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <SocketProvider>
+            <GameSocketProvider>
+              <NavigationContainer>
+                <AppNavigator />
+              </NavigationContainer>
+            </GameSocketProvider>
+          </SocketProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }
-
-export const config = {
-  runtime: "nodejs20.x",
-};

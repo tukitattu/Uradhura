@@ -2,13 +2,14 @@
 // AUTH SERVICE
 // ============================================================
 
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RegisterDto, LoginDto } from './dto';
 import { JwtPayload } from './interfaces';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class AuthService {
@@ -16,9 +17,21 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private auditService: AuditService,
   ) {}
 
-  async register(dto: RegisterDto) {
+  /**
+   * Admin creation is a super-admin action only. Ran publicly (as it was),
+   * anyone could mint admin accounts — a privilege escalation hole.
+   */
+  async register(dto: RegisterDto, creatorId?: string, ctx?: { ipAddress?: string; userAgent?: string; requestId?: string }) {
+    const roleName = dto.roleName || 'viewer';
+    if (roleName === 'super_admin') {
+      throw new ForbiddenException(
+        'super_admin accounts cannot be created through this endpoint; promote an existing admin instead',
+      );
+    }
+
     // Check if username or email exists
     const existing = await this.prisma.adminUser.findFirst({
       where: {
@@ -44,22 +57,41 @@ export class AuthService {
         passwordHash,
         firstName: dto.firstName,
         lastName: dto.lastName,
+        createdBy: creatorId,
       },
     });
 
-    // Assign default role (viewer)
-    const defaultRole = await this.prisma.role.findUnique({
-      where: { name: 'viewer' },
+    // Assign the requested (non-super-admin) role
+    const role = await this.prisma.role.findUnique({
+      where: { name: roleName },
     });
 
-    if (defaultRole) {
+    if (role) {
       await this.prisma.adminUserRole.create({
         data: {
           adminId: user.id,
-          roleId: defaultRole.id,
+          roleId: role.id,
         },
       });
     }
+
+    await this.auditService.log({
+      actorId: creatorId,
+      actorType: 'admin',
+      action: 'admin.registered',
+      entityType: 'AdminUser',
+      entityId: user.id,
+      after: {
+        username: user.username,
+        email: user.email,
+        roleName,
+        createdBy: creatorId,
+      },
+      ipAddress: ctx?.ipAddress,
+      userAgent: ctx?.userAgent,
+      requestId: ctx?.requestId,
+      metadata: { source: 'auth.register' },
+    });
 
     // Generate tokens
     const tokens = await this.generateTokens(user.id, user.username, user.email);

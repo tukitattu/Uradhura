@@ -58,7 +58,7 @@ export default function DepositScreen() {
     }
   };
 
-  const packages = activeTab === 'coins' ? coinPackages : diamondPackages;
+  const packages: (CoinPackage | DiamondPackage)[] = activeTab === 'coins' ? coinPackages : diamondPackages;
 
   return (
     <View style={styles.container}>

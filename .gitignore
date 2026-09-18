@@ -73,3 +73,9 @@ coverage/
 .claude/
 .mcp.json
 .ripgreprc
+
+# Expo cache
+.expo/
+
+# Build info
+*.tsbuildinfo

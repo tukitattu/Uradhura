@@ -65,6 +65,9 @@ export abstract class BaseGateway {
       username: payload.username,
     });
 
+    // Expose the player id on the socket for targeted emits.
+    client.data = { ...(client.data ?? {}), playerId: payload.sub, username: payload.username };
+
     this.logger.log(`Client ${client.id} authenticated as ${payload.username} (${payload.sub})`);
   }
 

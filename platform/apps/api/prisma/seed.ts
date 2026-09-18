@@ -238,6 +238,246 @@ const gamesData = [
 ];
 
 // ============================================================
+// GAME THEME + BRANDING (admin-configurable, no hard-coded UI)
+// ============================================================
+
+const gameThemeData: Record<string, Record<string, unknown>> = {
+  greedy_monkey: {
+    centralCharacter: '🐵',
+    characterName: 'Greedy Monkey',
+    characterAnimation: 'bounce',
+    icon: '🐵',
+    theme: JSON.stringify({
+      bg: 'linear-gradient(180deg,#052e16 0%,#14532d 100%)',
+      primary: '#22c55e',
+      accent: '#facc15',
+      cardBg: '#0b3d20',
+      text: '#f0fdf4',
+      wheelColors: ['#fde68a', '#ef4444', '#8b5cf6', '#22c55e', '#f97316', '#eab308', '#facc15', '#fbbf24'],
+    }),
+    colorConfig: JSON.stringify({ button: '#facc15', chip: '#22c55e', hot: '#f97316' }),
+    sounds: JSON.stringify({ spin: '/audio/monkey-spin.mp3', win: '/audio/win.mp3', tick: '/audio/tick.mp3' }),
+    music: JSON.stringify({ loop: '/audio/jungle-loop.mp3', volume: 0.4 }),
+    rules: JSON.stringify({
+      title: 'How to Play Greedy Monkey',
+      steps: [
+        'Pick a food item on the wheel and choose your chip amount.',
+        'The monkey spins the wheel when the countdown ends.',
+        'If the wheel lands on your food, you win bet × multiplier.',
+        'Rarer foods pay bigger multipliers. Results are provably fair.',
+      ],
+    }),
+    helpContent: 'The wheel outcome is generated server-side with HMAC-SHA256 from a committed seed. No client can influence the result.',
+  },
+  greedy_lion: {
+    centralCharacter: '🦁',
+    characterName: 'Greedy Lion',
+    characterAnimation: 'roar',
+    icon: '🦁',
+    theme: JSON.stringify({
+      bg: 'linear-gradient(180deg,#431407 0%,#7c2d12 100%)',
+      primary: '#f59e0b',
+      accent: '#ef4444',
+      cardBg: '#5c1a06',
+      text: '#fff7ed',
+      wheelColors: ['#fed7aa', '#f97316', '#facc15', '#ef4444', '#dc2626', '#f59e0b'],
+    }),
+    colorConfig: JSON.stringify({ button: '#ef4444', chip: '#f59e0b', hot: '#facc15' }),
+    sounds: JSON.stringify({ spin: '/audio/lion-spin.mp3', win: '/audio/roar-win.mp3', tick: '/audio/tick.mp3' }),
+    music: JSON.stringify({ loop: '/audio/savanna-loop.mp3', volume: 0.4 }),
+    rules: JSON.stringify({
+      title: 'How to Play Greedy Lion',
+      steps: [
+        'Select a meat on the wheel and place your bet.',
+        'The lion hunts when the countdown ends.',
+        'Landing on your choice pays the displayed multiplier.',
+        'HOT items are highlighted by the operator.',
+      ],
+    }),
+    helpContent: 'Provably fair HMAC-SHA256 wheel driven by the server. Every round reveals its seed after settlement.',
+  },
+  teen_patti: {
+    centralCharacter: '🃏',
+    characterName: 'Teen Patti Dealer',
+    characterAnimation: 'deal',
+    icon: '🃏',
+    theme: JSON.stringify({
+      bg: 'linear-gradient(180deg,#450a0a 0%,#7f1d1d 100%)',
+      primary: '#dc2626',
+      accent: '#fbbf24',
+      cardBg: '#5b1111',
+      text: '#fef2f2',
+      seats: ['#ef4444', '#3b82f6', '#22c55e'],
+    }),
+    colorConfig: JSON.stringify({ button: '#dc2626', chip: '#fbbf24', hot: '#f97316' }),
+    sounds: JSON.stringify({ deal: '/audio/deal.mp3', win: '/audio/win.mp3', tick: '/audio/tick.mp3' }),
+    music: JSON.stringify({ loop: '/audio/teenpatti-loop.mp3', volume: 0.35 }),
+    rules: JSON.stringify({
+      title: 'How to Play Teen Patti',
+      steps: [
+        'Three seats (A, B, C) are each dealt a 3-card hand.',
+        'Bet on the seat you think has the strongest hand.',
+        'Hands rank: Trail > Pure Sequence > Sequence > Color > Pair > High Card.',
+        'Winning seats pay the seat multiplier.',
+      ],
+    }),
+    helpContent: 'Cards are dealt deterministically from the round seed. Verify any settled round with its revealed server seed.',
+  },
+  food_wheel: {
+    centralCharacter: '🎡',
+    characterName: 'Food Wheel',
+    characterAnimation: 'spin',
+    icon: '🍔',
+    theme: JSON.stringify({
+      bg: 'linear-gradient(180deg,#500724 0%,#831843 100%)',
+      primary: '#ec4899',
+      accent: '#f97316',
+      cardBg: '#701a3a',
+      text: '#fdf2f8',
+      wheelColors: ['#f97316', '#22c55e', '#ef4444', '#eab308', '#a855f7', '#3b82f6', '#ec4899', '#14b8a6', '#f59e0b', '#84cc16'],
+    }),
+    colorConfig: JSON.stringify({ button: '#ec4899', chip: '#f97316', hot: '#facc15' }),
+    sounds: JSON.stringify({ spin: '/audio/food-spin.mp3', win: '/audio/win.mp3', tick: '/audio/tick.mp3' }),
+    music: JSON.stringify({ loop: '/audio/food-loop.mp3', volume: 0.4 }),
+    rules: JSON.stringify({
+      title: 'How to Play Food Wheel',
+      steps: [
+        'Choose a food on the wheel and a chip size.',
+        'The wheel spins when the countdown reaches zero.',
+        'Landing on your food pays its multiplier.',
+        'Only one food wins each round.',
+      ],
+    }),
+    helpContent: 'Server-authoritative spin. The result is fixed by the committed seed before betting closes.',
+  },
+  three_card: {
+    centralCharacter: '🂱',
+    characterName: 'Three Card Dealer',
+    characterAnimation: 'flip',
+    icon: '🃏',
+    theme: JSON.stringify({
+      bg: 'linear-gradient(180deg,#0c1a3a 0%,#1e3a8a 100%)',
+      primary: '#3b82f6',
+      accent: '#06b6d4',
+      cardBg: '#12224a',
+      text: '#eff6ff',
+      seats: ['#ef4444', '#3b82f6', '#22c55e'],
+    }),
+    colorConfig: JSON.stringify({ button: '#3b82f6', chip: '#06b6d4', hot: '#facc15' }),
+    sounds: JSON.stringify({ deal: '/audio/deal.mp3', win: '/audio/win.mp3', tick: '/audio/tick.mp3' }),
+    music: JSON.stringify({ loop: '/audio/card-loop.mp3', volume: 0.35 }),
+    rules: JSON.stringify({
+      title: 'How to Play Three Card',
+      steps: [
+        'Three colored seats are each dealt one card.',
+        'Bet on the seat you think gets the highest card.',
+        'Aces are high; ties are broken by suit order.',
+        'The winning seat pays its multiplier.',
+      ],
+    }),
+    helpContent: 'Cards come from a deterministic seeded deck. Settled rounds disclose the server seed for verification.',
+  },
+  slot: {
+    centralCharacter: '🎰',
+    characterName: 'Lucky Slots',
+    characterAnimation: 'reel',
+    icon: '🎰',
+    theme: JSON.stringify({
+      bg: 'linear-gradient(180deg,#2e1065 0%,#6d28d9 100%)',
+      primary: '#a855f7',
+      accent: '#fbbf24',
+      cardBg: '#3b0764',
+      text: '#faf5ff',
+      reelColors: ['#fbbf24', '#f59e0b', '#a855f7'],
+    }),
+    colorConfig: JSON.stringify({ button: '#a855f7', chip: '#fbbf24', hot: '#f97316' }),
+    sounds: JSON.stringify({ spin: '/audio/slot-spin.mp3', win: '/audio/jackpot.mp3', tick: '/audio/tick.mp3' }),
+    music: JSON.stringify({ loop: '/audio/casino-loop.mp3', volume: 0.4 }),
+    rules: JSON.stringify({
+      title: 'How to Play Lucky Slots',
+      steps: [
+        'Choose your bet and press START to spin the reels.',
+        'The payline symbol determines your multiplier.',
+        'Use Quick, Auto and Extra Bet for faster play.',
+        'The server resolves the spin with a committed fair seed.',
+      ],
+    }),
+    helpContent: 'Spin outcomes use a weighted payline table from admin config, resolved server-side. No client RNG.',
+  },
+};
+
+// ============================================================
+// GAME OPTIONS (wheel faces / card seats / slot spin surface)
+// Each entry: [name, label, emoji, multiplier, weight, colorHex, isHot]
+// ============================================================
+
+const gameOptionsData: Record<string, Array<[string, string, string, number, number, string, boolean]>> = {
+  greedy_monkey: [
+    ['Banana', 'Banana', '🍌', 0.6, 35, '#fde68a', false],
+    ['Apple', 'Apple', '🍎', 0.7, 24, '#ef4444', false],
+    ['Grapes', 'Grapes', '🍇', 0.9, 16, '#8b5cf6', false],
+    ['Watermelon', 'Watermelon', '🍉', 1.1, 11, '#22c55e', false],
+    ['Mango', 'Mango', '🥭', 1.5, 8, '#f97316', false],
+    ['Pineapple', 'Pineapple', '🍍', 2.5, 4, '#eab308', false],
+    ['Star Fruit', 'Star Fruit', '⭐', 6.0, 1.5, '#facc15', true],
+    ['Golden Banana', 'Golden Banana', '🏆', 12.0, 0.5, '#fbbf24', true],
+  ],
+  greedy_lion: [
+    ['Meat', 'Meat', '🍖', 0.6, 35, '#fca5a5', false],
+    ['Drumstick', 'Drumstick', '🍗', 0.7, 24, '#f59e0b', false],
+    ['Fish', 'Fish', '🐟', 0.9, 16, '#38bdf8', false],
+    ['Steak', 'Steak', '🥩', 1.1, 11, '#dc2626', false],
+    ['Bacon', 'Bacon', '🥓', 1.5, 8, '#ef4444', false],
+    ['Shrimp', 'Shrimp', '🍤', 2.5, 4, '#fb923c', false],
+    ['Bone', 'Bone', '🦴', 6.0, 1.5, '#e5e7eb', true],
+    ['Golden Lion', 'Golden Lion', '🦁', 12.0, 0.5, '#fbbf24', true],
+  ],
+  food_wheel: [
+    ['Pizza', 'Pizza', '🍕', 0.6, 20, '#f97316', false],
+    ['Burger', 'Burger', '🍔', 0.7, 18, '#22c55e', false],
+    ['Hotdog', 'Hotdog', '🌭', 0.8, 14, '#ef4444', false],
+    ['Fries', 'Fries', '🍟', 0.9, 12, '#eab308', false],
+    ['Popcorn', 'Popcorn', '🍿', 1.0, 10, '#a855f7', false],
+    ['Donut', 'Donut', '🍩', 1.2, 8, '#f472b6', false],
+    ['Ice Cream', 'Ice Cream', '🍦', 1.5, 7, '#38bdf8', false],
+    ['Sushi', 'Sushi', '🍣', 1.8, 5, '#14b8a6', false],
+    ['Taco', 'Taco', '🌮', 2.5, 4, '#f59e0b', true],
+    ['Chicken', 'Chicken', '🍗', 4.0, 2, '#84cc16', true],
+  ],
+  teen_patti: [
+    ['Player A', 'Player A', '🅰️', 2.9, 1, '#ef4444', true],
+    ['Player B', 'Player B', '🅱️', 2.9, 1, '#3b82f6', false],
+    ['Player C', 'Player C', '🅾️', 2.9, 1, '#22c55e', false],
+  ],
+  three_card: [
+    ['Red', 'Red', '🃏', 2.9, 1, '#ef4444', false],
+    ['Blue', 'Blue', '🃏', 2.9, 1, '#3b82f6', false],
+    ['Green', 'Green', '🃏', 2.9, 1, '#22c55e', false],
+  ],
+  slot: [
+    ['SPIN', 'SPIN', '🎰', 1.0, 1, '#a855f7', true],
+  ],
+};
+
+// Slot payline table stored on the active configuration's configData.
+const slotConfigData = JSON.stringify({
+  paylines: [
+    { symbol: '🍒', weight: 40, multiplier: 0.2, emoji: '🍒' },
+    { symbol: '🍋', weight: 25, multiplier: 0.4, emoji: '🍋' },
+    { symbol: '🍇', weight: 15, multiplier: 0.8, emoji: '🍇' },
+    { symbol: '💎', weight: 9, multiplier: 1.5, emoji: '💎' },
+    { symbol: '⭐', weight: 6, multiplier: 2.5, emoji: '⭐' },
+    { symbol: '7️⃣', weight: 4, multiplier: 6, emoji: '7️⃣' },
+    { symbol: '👑', weight: 1, multiplier: 15, emoji: '👑' },
+  ],
+  reels: 3,
+  rows: 3,
+  allowExtraBet: true,
+  allowQuick: true,
+  allowAuto: true,
+});
+
+// ============================================================
 // GAME CONFIGURATION DEFAULTS
 // ============================================================
 
@@ -651,6 +891,7 @@ async function main() {
   const gameRecords: Record<string, { id: string }> = {};
 
   for (const game of gamesData) {
+    const theme = gameThemeData[game.internalCode] ?? {};
     const record = await prisma.game.upsert({
       where: { internalCode: game.internalCode },
       update: {
@@ -663,6 +904,7 @@ async function main() {
         sortOrder: game.sortOrder,
         isFeatured: game.isFeatured,
         isHot: game.isHot,
+        ...theme,
       },
       create: {
         internalCode: game.internalCode,
@@ -676,6 +918,7 @@ async function main() {
         sortOrder: game.sortOrder,
         isFeatured: game.isFeatured,
         isHot: game.isHot,
+        ...theme,
       },
     });
     gameRecords[game.internalCode] = { id: record.id };
@@ -693,6 +936,7 @@ async function main() {
     if (!gameId) continue;
 
     const configDefaults = getGameConfigurationDefaults(game.internalCode) as Record<string, any>;
+    const configData = game.internalCode === 'slot' ? slotConfigData : null;
 
     await prisma.gameConfiguration.upsert({
       where: {
@@ -707,6 +951,7 @@ async function main() {
         bettingDurationSeconds: configDefaults.bettingDurationSeconds ?? 30,
         roundDurationSeconds: configDefaults.roundDurationSeconds ?? 30,
         maxPlayers: configDefaults.maxPlayers ?? 1000,
+        configData,
         isActive: true,
       },
       create: {
@@ -723,6 +968,7 @@ async function main() {
         newRoundDelayMs: 3000,
         minPlayers: 0,
         maxPlayers: configDefaults.maxPlayers ?? 1000,
+        configData,
         isActive: true,
         createdBy: superAdminUser.id,
       },
@@ -769,6 +1015,40 @@ async function main() {
       },
     });
     console.log(`  Bet config for: ${game.internalCode}`);
+  }
+  console.log('');
+
+  // ----------------------------------------------------------
+  // 7.5 SEED GAME OPTIONS (wheel faces / card seats / spin surface)
+  // ----------------------------------------------------------
+  console.log('Seeding game options...');
+
+  for (const game of gamesData) {
+    const gameId = gameRecords[game.internalCode]?.id;
+    if (!gameId) continue;
+
+    const options = gameOptionsData[game.internalCode] ?? [];
+    await prisma.gameOption.deleteMany({ where: { gameId } });
+
+    for (let i = 0; i < options.length; i++) {
+      const [name, label, emoji, multiplier, weight, colorHex, isHot] = options[i];
+      await prisma.gameOption.create({
+        data: {
+          gameId,
+          name,
+          label,
+          icon: emoji,
+          multiplier,
+          weight,
+          colorHex,
+          isHot,
+          isActive: true,
+          sortOrder: i + 1,
+          metadata: JSON.stringify({ emoji }),
+        },
+      });
+    }
+    console.log(`  ${game.internalCode}: ${options.length} options`);
   }
   console.log('');
 

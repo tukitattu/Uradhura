@@ -291,7 +291,7 @@ export class ModerationService {
         where: { targetType, targetId },
         orderBy: { createdAt: 'desc' },
         include: {
-          admin: { select: { id: true, username: true, displayName: true, avatar: true } },
+          admin: { select: { id: true, username: true, firstName: true, lastName: true, avatar: true } },
         },
       }),
       this.prisma.report.findMany({

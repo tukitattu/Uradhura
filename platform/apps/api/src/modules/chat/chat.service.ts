@@ -230,25 +230,25 @@ export class ChatService {
     >`
       SELECT DISTINCT ON (other_player_id)
         other_player_id,
-        content as last_message,
-        created_at as last_message_at,
+        "content" as last_message,
+        "createdAt" as last_message_at,
         0 as unread_count
       FROM (
         SELECT
-          CASE WHEN sender_id = ${playerId} THEN receiver_id ELSE sender_id END as other_player_id,
-          content,
-          created_at,
+          CASE WHEN "senderId" = ${playerId} THEN "receiverId" ELSE "senderId" END as other_player_id,
+          "content",
+          "createdAt",
           ROW_NUMBER() OVER (
-            PARTITION BY CASE WHEN sender_id = ${playerId} THEN receiver_id ELSE sender_id END
-            ORDER BY created_at DESC
+            PARTITION BY CASE WHEN "senderId" = ${playerId} THEN "receiverId" ELSE "senderId" END
+            ORDER BY "createdAt" DESC
           ) as rn
         FROM messages
-        WHERE type = 'dm'
-          AND is_deleted = false
-          AND (sender_id = ${playerId} OR receiver_id = ${playerId})
+        WHERE "type" = 'dm'
+          AND "isDeleted" = false
+          AND ("senderId" = ${playerId} OR "receiverId" = ${playerId})
       ) sub
       WHERE rn = 1
-      ORDER BY other_player_id, created_at DESC
+      ORDER BY other_player_id, "createdAt" DESC
     `;
 
     const conversations = await Promise.all(

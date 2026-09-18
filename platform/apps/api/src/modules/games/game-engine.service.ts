@@ -12,9 +12,11 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { RngService } from './rng.service';
 import { RoundLifecycleService } from './round-lifecycle.service';
 import { WalletIntegrationService } from './wallet-integration.service';
+import { SeedService } from './seed.service';
+import { GameDriverRegistry } from './drivers/driver.registry';
+import { AuditService } from '../audit/audit.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import {
   Game,
@@ -32,9 +34,11 @@ export class GameEngineService {
 
   constructor(
     private prisma: PrismaService,
-    private rngService: RngService,
     private roundLifecycle: RoundLifecycleService,
     private walletService: WalletIntegrationService,
+    private seedService: SeedService,
+    private driverRegistry: GameDriverRegistry,
+    private auditService: AuditService,
   ) {}
 
   // ----------------------------------------------------------
@@ -188,7 +192,23 @@ export class GameEngineService {
     const potentialPayout = betAmount.mul(option.multiplier);
 
     const result = await this.prisma.$transaction(async (tx) => {
-      // Debit wallet atomically
+      // Re-lock the round row and confirm betting is still open. This
+      // serializes against a concurrently-closing scheduler tick, so a
+      // bet can never land on an already-closed round.
+      const locked = await tx.$queryRaw<
+        { id: string; status: string }[]
+      >`SELECT id, status FROM game_rounds WHERE id = ${round.id} FOR UPDATE`;
+      if (!locked || locked.length === 0) {
+        throw new BadRequestException('Round no longer available');
+      }
+      if (locked[0].status !== 'betting_open') {
+        throw new BadRequestException(
+          `Betting closed while placing this bet. Current status: ${locked[0].status}`,
+        );
+      }
+
+      // Debit wallet atomically within THIS transaction so a failed bet
+      // creation rolls back the debit too (no ghost debits).
       const { wallet, transaction: walletTx } = await this.walletService.debit(
         playerId,
         betAmount,
@@ -196,28 +216,37 @@ export class GameEngineService {
         round.id,
         `Bet on ${option.label} in round #${round.roundNumber}`,
         data.idempotencyKey,
+        { tx },
       );
 
       // Create bet record
-      const bet = await tx.gameBet.create({
-        data: {
-          roundId: round.id,
-          playerId,
-          optionId: data.optionId,
-          amount: betAmount,
-          potentialPayout,
-          status: 'pending',
-          multiplierSnapshot: new Decimal(option.multiplier),
-          idempotencyKey: data.idempotencyKey,
-          txRef: walletTx.id,
-          metadata: JSON.stringify({
-            gameId: data.gameId,
-            gameCode: game.internalCode,
-            roundNumber: round.roundNumber,
-            optionName: option.name,
-          }),
-        },
-      });
+      let bet: GameBet;
+      try {
+        bet = await tx.gameBet.create({
+          data: {
+            roundId: round.id,
+            playerId,
+            optionId: data.optionId,
+            amount: betAmount,
+            potentialPayout,
+            status: 'pending',
+            multiplierSnapshot: new Decimal(option.multiplier),
+            idempotencyKey: data.idempotencyKey,
+            txRef: walletTx.id,
+            metadata: JSON.stringify({
+              gameId: data.gameId,
+              gameCode: game.internalCode,
+              roundNumber: round.roundNumber,
+              optionName: option.name,
+            }),
+          },
+        });
+      } catch (e: unknown) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          throw new ConflictException('This bet has already been placed');
+        }
+        throw e;
+      }
 
       // Update round total
       await tx.gameRound.update({
@@ -235,6 +264,24 @@ export class GameEngineService {
     this.logger.log(
       `Bet placed: player=${playerId} game=${game.internalCode} round=${round.roundNumber} option=${option.name} amount=${betAmount}`,
     );
+
+    await this.auditService.log({
+      actorId: playerId,
+      actorType: 'player',
+      action: 'bet.placed',
+      entityType: 'GameBet',
+      entityId: result.bet.id,
+      after: {
+        betId: result.bet.id,
+        gameId: data.gameId,
+        gameCode: game.internalCode,
+        roundNumber: round.roundNumber,
+        roundId: round.id,
+        optionId: data.optionId,
+        amount: betAmount.toString(),
+      },
+      metadata: { txRef: result.bet.txRef },
+    });
 
     return {
       bet: result.bet,
@@ -277,49 +324,51 @@ export class GameEngineService {
   /**
    * Full round processing pipeline:
    *   1. Close betting
-   *   2. Generate result
-   *   3. Settle all bets
+   *   2. Generate result (via game driver + committed fair seed)
+   *   3. Settle all bets (reveals fair seed)
+   *   4. Commit seed for the next round
    *
-   * Called by cron jobs or admin actions.
+   * Called by the scheduler or admin actions.
    */
   async processRound(
     gameId: string,
     roundId: string,
   ): Promise<{
     round: GameRound;
-    result: { optionId: string; winningLabel: string; resultData: any; seed: string };
+    result: { optionId: string; winningLabel: string; resultData: any };
     settlement: { totalWinners: number; totalPayout: Decimal };
   }> {
     // Validate the round belongs to the game
-    const round = await this.prisma.gameRound.findUnique({
-      where: { id: roundId },
-    });
+    const round = await this.prisma.gameRound.findUnique({ where: { id: roundId } });
 
-    if (!round) {
-      throw new NotFoundException(`Round ${roundId} not found`);
+    if (!round) throw new NotFoundException(`Round ${roundId} not found`);
+    if (round.gameId !== gameId) {
+      throw new BadRequestException(`Round ${roundId} does not belong to game ${gameId}`);
     }
 
-    if (round.gameId !== gameId) {
+    // Step 1: Close betting (only if still open — rounds may arrive here
+    // from autoProcessClosedRounds already in betting_closed state).
+    if (round.status === 'betting_open') {
+      await this.roundLifecycle.closeBetting(roundId);
+    } else if (round.status !== 'betting_closed') {
       throw new BadRequestException(
-        `Round ${roundId} does not belong to game ${gameId}`,
+        `Round must be betting_open or betting_closed to process. Current: ${round.status}`,
       );
     }
 
-    // Step 1: Close betting
-    const closedRound = await this.roundLifecycle.closeBetting(roundId);
+    // Step 2: Generate result via the game driver + committed seed
+    const { payload } = await this.roundLifecycle.processResult(roundId);
 
-    // Step 2: Generate result
-    const { result } = await this.roundLifecycle.processResult(roundId);
-
-    // Step 3: Settle bets
+    // Step 3: Settle bets (reveals the fair seed)
     const settlement = await this.roundLifecycle.settleRound(roundId);
-
-    // Step 4: Create next round
-    await this.roundLifecycle.createNextRound(gameId);
 
     return {
       round: settlement.round,
-      result,
+      result: {
+        optionId: payload.winnerOptionId ?? '',
+        winningLabel: payload.winnerLabel,
+        resultData: payload.outcomeData,
+      },
       settlement: {
         totalWinners: settlement.totalWinners,
         totalPayout: settlement.totalPayout,
@@ -333,7 +382,8 @@ export class GameEngineService {
 
   /**
    * Returns the full current state of a game including the
-   * active round, configuration, and option list.
+   * active round, configuration, option list, and provably-fair
+   * seed commitment for the current round.
    */
   async getGameState(
     gameId: string,
@@ -343,6 +393,7 @@ export class GameEngineService {
     config: GameConfiguration | null;
     betConfig: GameBetConfig | null;
     options: GameOption[];
+    seedState: { serverSeedHash: string; clientSeed: string; nonce: number } | null;
   }> {
     const game = await this.prisma.game.findUnique({
       where: { id: gameId },
@@ -353,11 +404,23 @@ export class GameEngineService {
       },
     });
 
-    if (!game) {
-      throw new NotFoundException('Game not found');
-    }
+    if (!game) throw new NotFoundException('Game not found');
 
     const currentRound = await this.roundLifecycle.getCurrentRound(gameId);
+
+    let seedState: { serverSeedHash: string; clientSeed: string; nonce: number } | null = null;
+    if (currentRound) {
+      const seed = await this.prisma.gameSeed.findUnique({
+        where: { roundId: currentRound.id },
+      });
+      if (seed) {
+        seedState = {
+          serverSeedHash: seed.serverSeedHash,
+          clientSeed: seed.clientSeed,
+          nonce: seed.nonce,
+        };
+      }
+    }
 
     return {
       game,
@@ -365,6 +428,7 @@ export class GameEngineService {
       config: game.configurations[0] ?? null,
       betConfig: game.betConfigs[0] ?? null,
       options: game.options,
+      seedState,
     };
   }
 

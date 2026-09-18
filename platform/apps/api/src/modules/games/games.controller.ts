@@ -33,6 +33,7 @@ import { CreateGameDto, UpdateGameDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 
 @ApiTags('Games')
 @ApiBearerAuth()
@@ -78,6 +79,7 @@ export class GamesController {
   }
 
   @Get('active')
+  @Public()
   @ApiOperation({ summary: 'Get active games (public)' })
   @ApiResponse({ status: 200, description: 'Active games returned' })
   async getActiveGames() {
@@ -85,6 +87,7 @@ export class GamesController {
   }
 
   @Get('code/:internalCode')
+  @Public()
   @ApiOperation({ summary: 'Get game by internal code (public)' })
   @ApiParam({ name: 'internalCode', description: 'Unique game internal code' })
   @ApiResponse({ status: 200, description: 'Game found' })

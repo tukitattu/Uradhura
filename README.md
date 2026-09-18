@@ -9,7 +9,7 @@ channels: **Admin Web**, **Player Web**, and the **Android APK**.
 |---|---|---|---|
 | Backend API | NestJS + Prisma + Socket.IO | `platform/apps/api` | http://localhost:4002 |
 | Admin Web | Next.js 14 (App Router) + shadcn/ui | `platform/apps/admin` | http://localhost:3001 |
-| Player Web | Next.js 14 + Tailwind + PWA-ready | `platform/apps/player-web` → currently `gaming-platform/frontend` | http://localhost:3000 |
+| Player Web | Next.js 14 + Tailwind + PWA-ready | `platform/apps/player-web` → legacy → `platform/ops/legacy/gaming-platform/frontend` (kept for reference) | http://localhost:3000 |
 | Player APK | React Native (Expo SDK 50) | `platform/apps/player` | Expo dev build |
 
 > Legacy Express stack lives under `gaming-platform/` (backend :4000, frontend :3000).

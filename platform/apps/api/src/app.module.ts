@@ -4,6 +4,8 @@
 
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PlayersModule } from './modules/players/players.module';
@@ -20,6 +22,7 @@ import { HealthModule } from './modules/health/health.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
+import { AdminManagementModule } from './modules/admin-management/admin-management.module';
 
 @Module({
   imports: [
@@ -28,6 +31,10 @@ import { GatewayModule } from './modules/gateway/gateway.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+
+    // Scheduling + in-process events (game engine)
+    ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot(),
 
     // Database
     PrismaModule,
@@ -48,6 +55,7 @@ import { GatewayModule } from './modules/gateway/gateway.module';
     SettingsModule,
     DashboardModule,
     GatewayModule,
+    AdminManagementModule,
   ],
 })
 export class AppModule {}

@@ -1,0 +1,30 @@
+{
+  "name": "@uradhura/provably-fair",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Provably fair HMAC-SHA256 RNG + verification for the Uradhura gaming platform",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs"
+  },
+  "keywords": [
+    "rng",
+    "provably-fair",
+    "hmac",
+    "casino",
+    "gaming"
+  ],
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@types/node": "^26.6.1"
+  }
+}

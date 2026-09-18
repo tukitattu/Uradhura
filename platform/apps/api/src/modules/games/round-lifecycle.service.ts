@@ -1,7 +1,15 @@
 // ============================================================
 // ROUND LIFECYCLE SERVICE — Game Round State Machine
 // Manages the full lifecycle: upcoming → betting_open →
-//   betting_closed → result_processing → settled
+//   betting_closed → result_processing → settled / closed
+// Seeds are committed BEFORE betting opens (provably fair) and
+// revealed AFTER settlement. Outcomes are produced by the game
+// driver registered for the game's internalCode.
+//
+// Every state transition locks the round row (SELECT ... FOR UPDATE)
+// inside its own transaction so concurrent scheduler ticks, admin
+// actions and bet placements serialize and can never double-advance
+// or land a bet on a closed round.
 // ============================================================
 
 import {
@@ -12,9 +20,21 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { RngService } from './rng.service';
+import { SeedService, SeedBundle } from './seed.service';
+import { GameDriverRegistry } from './drivers/driver.registry';
+import { AuditService } from '../audit/audit.service';
 import { GameRound, GameOption, Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+
+interface RoundPayload {
+  outcomeData: Record<string, unknown>;
+  winnerOptionId: string | null;
+  winnerLabel: string;
+  payoutMultiplier?: number;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+}
 
 @Injectable()
 export class RoundLifecycleService {
@@ -31,122 +51,118 @@ export class RoundLifecycleService {
 
   constructor(
     private prisma: PrismaService,
-    private rngService: RngService,
+    private seedService: SeedService,
+    private driverRegistry: GameDriverRegistry,
+    private auditService: AuditService,
   ) {}
 
   // ----------------------------------------------------------
   // State transitions
   // ----------------------------------------------------------
 
-  /**
-   * Opens betting for a round. Sets the bettingOpensAt timestamp.
-   */
   async startBetting(roundId: string): Promise<GameRound> {
-    const round = await this.prisma.gameRound.findUnique({ where: { id: roundId } });
+    return this.prisma.$transaction(async (tx) => {
+      const row = await this.lockRound(tx, roundId);
+      this.ensureValidTransition(row.status, 'betting_open');
 
-    if (!round) {
-      throw new NotFoundException(`Round ${roundId} not found`);
-    }
+      const config = await tx.gameConfiguration.findFirst({
+        where: { gameId: row.gameId, isActive: true },
+      });
+      const bettingMs = (config?.bettingDurationSeconds ?? 30) * 1000;
 
-    this.ensureValidTransition(round.status, 'betting_open');
-
-    const now = new Date();
-
-    return this.prisma.gameRound.update({
-      where: { id: roundId },
-      data: {
-        status: 'betting_open',
-        bettingOpensAt: now,
-        updatedAt: now,
-      },
-    });
-  }
-
-  /**
-   * Closes betting for a round. Sets the bettingEndsAt timestamp.
-   */
-  async closeBetting(roundId: string): Promise<GameRound> {
-    const round = await this.prisma.gameRound.findUnique({ where: { id: roundId } });
-
-    if (!round) {
-      throw new NotFoundException(`Round ${roundId} not found`);
-    }
-
-    this.ensureValidTransition(round.status, 'betting_closed');
-
-    const now = new Date();
-
-    return this.prisma.gameRound.update({
-      where: { id: roundId },
-      data: {
-        status: 'betting_closed',
-        bettingEndsAt: now,
-        closedAt: now,
-        updatedAt: now,
-      },
-    });
-  }
-
-  /**
-   * Processes the result for a round:
-   *   1. Fetches active game options and config
-   *   2. Generates provably fair result via RngService
-   *   3. Creates GameResult record
-   *   4. Updates round with winner info
-   */
-  async processResult(roundId: string): Promise<{
-    round: GameRound;
-    result: { optionId: string; winningLabel: string; resultData: any; seed: string };
-  }> {
-    const round = await this.prisma.gameRound.findUnique({
-      where: { id: roundId },
-      include: {
-        game: {
-          include: {
-            options: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
-            configurations: { where: { isActive: true }, take: 1 },
-          },
+      const now = new Date();
+      return tx.gameRound.update({
+        where: { id: roundId },
+        data: {
+          status: 'betting_open',
+          bettingOpensAt: now,
+          bettingEndsAt: new Date(now.getTime() + bettingMs),
+          updatedAt: now,
         },
-      },
+      });
     });
+  }
 
-    if (!round) {
-      throw new NotFoundException(`Round ${roundId} not found`);
-    }
+  async closeBetting(roundId: string): Promise<GameRound> {
+    return this.prisma.$transaction(async (tx) => {
+      const row = await this.lockRound(tx, roundId);
+      this.ensureValidTransition(row.status, 'betting_closed');
 
-    this.ensureValidTransition(round.status, 'result_processing');
+      const now = new Date();
+      return tx.gameRound.update({
+        where: { id: roundId },
+        data: {
+          status: 'betting_closed',
+          bettingEndsAt: row.bettingEndsAt ?? now,
+          closedAt: now,
+          updatedAt: now,
+        },
+      });
+    });
+  }
 
-    const options = round.game.options;
-    if (options.length === 0) {
-      throw new BadRequestException('No active options configured for this game');
-    }
+  /**
+   * Generates and persists the round result via the game's driver.
+   * Uses the seed that was committed when the round was created.
+   */
+  async processResult(roundId: string): Promise<{ round: GameRound; payload: RoundPayload }> {
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await this.lockRound(tx, roundId);
+      this.ensureValidTransition(locked.status, 'result_processing');
 
-    const config = round.game.configurations[0];
-    const serverSeed = this.rngService.generateServerSeed();
-    const clientSeed = this.rngService.generateSeed();
-    const nonce = round.roundNumber;
+      const round = await tx.gameRound.findUnique({
+        where: { id: roundId },
+        include: {
+          game: {
+            include: {
+              options: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
+              configurations: { where: { isActive: true }, take: 1 },
+            },
+          },
+          seed: true,
+        },
+      });
 
-    const { selectedOption, seedUsed } = this.rngService.generateResult(
-      options,
-      serverSeed,
-      nonce,
-    );
+      if (!round) throw new NotFoundException(`Round ${roundId} not found`);
+      if (!round.seed) {
+        throw new BadRequestException(`Round ${roundId} has no committed fair seed`);
+      }
 
-    const resultData = this.buildResultData(selectedOption, round);
+      const driver = this.driverRegistry.resolve(round.game.internalCode);
+      const bundle: SeedBundle = {
+        seedId: round.seed.id,
+        serverSeed: round.seed.serverSeed,
+        serverSeedHash: round.seed.serverSeedHash,
+        clientSeed: round.seed.clientSeed,
+        nonce: round.seed.nonce,
+      };
 
-    const gameResult = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.gameResult.create({
+      const outcome = driver.generateOutcome({
+        round,
+        options: round.game.options,
+        config: round.game.configurations[0] ?? null,
+        seed: bundle,
+      });
+
+      const resultData = JSON.stringify(outcome.resultData);
+      const config = round.game.configurations[0];
+
+      await tx.gameResult.create({
         data: {
           roundId: round.id,
-          optionId: selectedOption.id,
-          winningLabel: selectedOption.label,
+          optionId:
+            outcome.winningOptionId ??
+            (typeof outcome.resultData.winningOptionId === 'string'
+              ? outcome.resultData.winningOptionId
+              : round.game.options[0]?.id ?? ''),
+          winningLabel: outcome.winningLabel,
           resultData,
-          seed: seedUsed,
+          seed: outcome.fairPlay.serverSeed ?? outcome.fairPlay.serverSeedHash,
           processedBy: 'system',
           metadata: JSON.stringify({
-            serverSeedHash: this.rngService.hashSeed(serverSeed),
-            clientSeed,
-            nonce,
+            serverSeedHash: outcome.fairPlay.serverSeedHash,
+            clientSeed: outcome.fairPlay.clientSeed,
+            nonce: outcome.fairPlay.nonce,
             configVersion: config?.version ?? null,
           }),
         },
@@ -156,8 +172,8 @@ export class RoundLifecycleService {
         where: { id: roundId },
         data: {
           status: 'result_processing',
-          winnerId: selectedOption.id,
-          winnerLabel: selectedOption.label,
+          winnerId: outcome.winningOptionId,
+          winnerLabel: outcome.winningLabel,
           resultData,
           houseEdge: config?.houseEdge ?? new Decimal(5),
           configVersion: config?.version ?? null,
@@ -165,71 +181,70 @@ export class RoundLifecycleService {
         },
       });
 
-      return result;
+      return {
+        round,
+        payload: {
+          outcomeData: outcome.resultData,
+          winnerOptionId: outcome.winningOptionId,
+          winnerLabel: outcome.winningLabel,
+          payoutMultiplier: outcome.payoutMultiplier,
+          serverSeedHash: outcome.fairPlay.serverSeedHash,
+          clientSeed: outcome.fairPlay.clientSeed,
+          nonce: outcome.fairPlay.nonce,
+        },
+      };
     });
-
-    return {
-      round,
-      result: {
-        optionId: selectedOption.id,
-        winningLabel: selectedOption.label,
-        resultData,
-        seed: seedUsed,
-      },
-    };
   }
 
   /**
-   * Settles all bets for a round:
-   *   1. Identifies winning and losing bets
-   *   2. Calculates payouts based on multiplier and house edge
-   *   3. Creates GameSettlement records
-   *   4. Credits winners via wallet transactions
-   *   5. Updates round totals and marks as settled
+   * Settles all bets. Winners are bets on the winning option (or ALL bets
+   * when winningOptionId is null, e.g. slots). Payout uses the driver's
+   * payoutMultiplier override when present, else the option multiplier.
+   * Credits winners atomically, then reveals the fair seed.
    */
   async settleRound(roundId: string): Promise<{
     round: GameRound;
     totalWinners: number;
     totalPayout: Decimal;
+    revealedSeed: SeedBundle;
   }> {
-    const round = await this.prisma.gameRound.findUnique({
-      where: { id: roundId },
-      include: {
-        game: {
-          include: {
-            configurations: { where: { isActive: true }, take: 1 },
-          },
-        },
-        bets: {
-          include: { option: true },
-        },
-        result: true,
-      },
-    });
-
-    if (!round) {
-      throw new NotFoundException(`Round ${roundId} not found`);
-    }
-
-    if (round.status !== 'result_processing') {
-      throw new BadRequestException(
-        `Round must be in result_processing status to settle. Current: ${round.status}`,
-      );
-    }
-
-    if (!round.result) {
-      throw new BadRequestException('Round has no result to settle against');
-    }
-
-    const winnerOptionId = round.result.optionId;
-    const houseEdge = round.game.configurations[0]?.houseEdge ?? new Decimal(5);
-    const houseEdgeMultiplier = new Decimal(1).minus(houseEdge.dividedBy(100));
-
-    const winnerBets = round.bets.filter((b) => b.optionId === winnerOptionId && b.status === 'pending');
-    const loserBets = round.bets.filter((b) => b.optionId !== winnerOptionId && b.status === 'pending');
-
     const settlements = await this.prisma.$transaction(async (tx) => {
-      // Mark losing bets
+      const locked = await this.lockRound(tx, roundId);
+      if (locked.status !== 'result_processing') {
+        throw new BadRequestException(
+          `Round must be in result_processing status to settle. Current: ${locked.status}`,
+        );
+      }
+
+      const round = await tx.gameRound.findUnique({
+        where: { id: roundId },
+        include: {
+          game: {
+            include: {
+              configurations: { where: { isActive: true }, take: 1 },
+            },
+          },
+          bets: { include: { option: true } },
+          result: true,
+        },
+      });
+
+      if (!round) throw new NotFoundException(`Round ${roundId} not found`);
+
+      const resultData = round.resultData ? (JSON.parse(round.resultData) as Record<string, unknown>) : null;
+      const winnerOptionId = round.winnerId;
+      const houseEdge = round.game.configurations[0]?.houseEdge ?? new Decimal(5);
+      const houseEdgeFactor = new Decimal(1).minus(houseEdge.dividedBy(100));
+
+      const winnerBets =
+        winnerOptionId === null
+          ? round.bets.filter((b) => b.status === 'pending')
+          : round.bets.filter((b) => b.optionId === winnerOptionId && b.status === 'pending');
+      const loserBets =
+        winnerOptionId === null
+          ? []
+          : round.bets.filter((b) => b.optionId !== winnerOptionId && b.status === 'pending');
+
       if (loserBets.length > 0) {
         await tx.gameBet.updateMany({
           where: { id: { in: loserBets.map((b) => b.id) } },
@@ -237,18 +252,13 @@ export class RoundLifecycleService {
         });
       }
 
-      // Process winning bets — create settlements and credit wallets
-      const settlementRecords: any[] = [];
+      const settlementRecords: unknown[] = [];
       let totalPayout = new Decimal(0);
 
       for (const bet of winnerBets) {
-        const multiplier = bet.multiplierSnapshot
-          ? new Decimal(bet.multiplierSnapshot)
-          : new Decimal(bet.option.multiplier);
-        const rawPayout = bet.amount.mul(multiplier);
-        const payout = rawPayout.mul(houseEdgeMultiplier);
+        const multiplier = this.resolvePayoutMultiplier(bet, resultData);
+        const payout = bet.amount.mul(multiplier).mul(houseEdgeFactor);
 
-        // Create settlement
         const settlement = await tx.gameSettlement.create({
           data: {
             roundId: round.id,
@@ -259,80 +269,70 @@ export class RoundLifecycleService {
           },
         });
 
-        // Credit wallet
-        const wallet = await tx.walletAccount.findUnique({
-          where: { playerId: bet.playerId },
-        });
+        const walletRows = await tx.$queryRaw<
+          { id: string; coinBalance: Decimal; totalCoinsEarned: Decimal }[]
+        >`SELECT id, "coinBalance", "totalCoinsEarned" FROM wallet_accounts WHERE "playerId" = ${bet.playerId} FOR UPDATE`;
 
-        if (wallet) {
-          const newBalance = wallet.coinBalance.add(payout);
-          const txRef = `settlement_${settlement.id}`;
-
-          await tx.walletTransaction.create({
-            data: {
-              walletAccountId: wallet.id,
-              playerId: bet.playerId,
-              type: 'bet_credit',
-              currency: 'coins',
-              amount: payout,
-              balanceBefore: wallet.coinBalance,
-              balanceAfter: newBalance,
-              referenceType: 'game_round',
-              referenceId: round.id,
-              description: `Win on round #${round.roundNumber}`,
-              idempotencyKey: txRef,
-              metadata: JSON.stringify({
-                betId: bet.id,
-                settlementId: settlement.id,
-                multiplier: multiplier.toString(),
-                houseEdge: houseEdge.toString(),
-              }),
-            },
-          });
-
-          await tx.walletAccount.update({
-            where: { id: wallet.id },
-            data: {
-              coinBalance: newBalance,
-              totalCoinsEarned: wallet.totalCoinsEarned.add(payout),
-            },
-          });
-
-          await tx.gameSettlement.update({
-            where: { id: settlement.id },
-            data: {
-              status: 'completed',
-              txRef,
-              settledAt: new Date(),
-            },
-          });
-
-          await tx.gameBet.update({
-            where: { id: bet.id },
-            data: {
-              status: 'won',
-              payout,
-              settledAt: new Date(),
-            },
-          });
-
-          totalPayout = totalPayout.add(payout);
-          settlementRecords.push(settlement);
-        } else {
-          // No wallet found — mark settlement as failed
+        if (!walletRows || walletRows.length === 0) {
           await tx.gameSettlement.update({
             where: { id: settlement.id },
             data: { status: 'failed' },
           });
-
           await tx.gameBet.update({
             where: { id: bet.id },
             data: { status: 'won', settledAt: new Date() },
           });
+          continue;
         }
+
+        const wallet = walletRows[0];
+        const newBalance = new Decimal(wallet.coinBalance).add(payout);
+        const txRef = `settlement_${settlement.id}`;
+
+        await tx.walletTransaction.create({
+          data: {
+            walletAccountId: wallet.id,
+            playerId: bet.playerId,
+            type: 'bet_credit',
+            currency: 'coins',
+            amount: payout,
+            balanceBefore: wallet.coinBalance,
+            balanceAfter: newBalance,
+            referenceType: 'game_round',
+            referenceId: round.id,
+            description: `Win on round #${round.roundNumber}`,
+            idempotencyKey: txRef,
+            metadata: JSON.stringify({
+              betId: bet.id,
+              settlementId: settlement.id,
+              multiplier: multiplier.toString(),
+              houseEdge: houseEdge.toString(),
+            }),
+          },
+        });
+
+        await tx.walletAccount.update({
+          where: { id: wallet.id },
+          data: {
+            coinBalance: newBalance,
+            totalCoinsEarned: new Decimal(wallet.totalCoinsEarned).add(payout),
+          },
+        });
+
+        await tx.gameSettlement.update({
+          where: { id: settlement.id },
+          data: { status: 'completed', txRef, settledAt: new Date() },
+        });
+
+        await tx.gameBet.update({
+          where: { id: bet.id },
+          data: { status: 'won', payout, settledAt: new Date() },
+        });
+
+        totalPayout = totalPayout.add(payout);
+        settlementRecords.push(settlement);
       }
 
-      // Update round totals
       const totalBetAmount = round.bets.reduce(
         (sum, b) => sum.add(new Decimal(b.amount)),
         new Decimal(0),
@@ -349,17 +349,40 @@ export class RoundLifecycleService {
         },
       });
 
-      return { settlementRecords, totalPayout, totalWinners: winnerBets.length };
+      return {
+        settlementRecords,
+        totalPayout,
+        totalWinners: winnerBets.length,
+        round,
+      };
     });
+
+    // Reveal the fair seed AFTER settlement so players can verify.
+    const revealedSeed = await this.seedService.revealRoundSeed(roundId);
 
     this.logger.log(
       `Round ${roundId} settled: ${settlements.totalWinners} winners, ${settlements.totalPayout} payout`,
     );
 
+    await this.auditService.log({
+      actorType: 'system',
+      action: 'round.settled',
+      entityType: 'GameRound',
+      entityId: roundId,
+      after: {
+        winners: settlements.totalWinners,
+        totalPayout: settlements.totalPayout.toString(),
+        totalBetAmount: settlements.round.totalBetAmount.toString(),
+        gameId: settlements.round.gameId,
+      },
+      metadata: { engine: 'round-lifecycle' },
+    });
+
     return {
-      round,
+      round: settlements.round,
       totalWinners: settlements.totalWinners,
       totalPayout: settlements.totalPayout,
+      revealedSeed,
     };
   }
 
@@ -367,63 +390,54 @@ export class RoundLifecycleService {
   // Round queries & creation
   // ----------------------------------------------------------
 
-  /**
-   * Gets the current active round for a game.
-   * Returns the most recent round that is NOT settled or closed.
-   */
   async getCurrentRound(gameId: string): Promise<GameRound | null> {
     return this.prisma.gameRound.findFirst({
-      where: {
-        gameId,
-        status: { notIn: ['settled', 'closed'] },
-      },
+      where: { gameId, status: { notIn: ['settled', 'closed'] } },
       orderBy: [{ roundNumber: 'desc' }],
     });
   }
 
   /**
-   * Creates the next round for a game.
-   * Determines the round number from the latest round, increments by 1.
+   * Creates the next round AND commits its fair seed before betting opens.
+   * Returns the round with its committed seed bundle.
    */
-  async createNextRound(gameId: string): Promise<GameRound> {
+  async createNextRound(
+    gameId: string,
+    preferredClientSeed?: string,
+  ): Promise<{ round: GameRound; seed: SeedBundle }> {
     const latestRound = await this.prisma.gameRound.findFirst({
       where: { gameId },
       orderBy: { roundNumber: 'desc' },
     });
-
     const nextNumber = (latestRound?.roundNumber ?? 0) + 1;
 
-    return this.prisma.gameRound.create({
-      data: {
-        gameId,
-        roundNumber: nextNumber,
-        status: 'upcoming',
-      },
+    const round = await this.prisma.gameRound.create({
+      data: { gameId, roundNumber: nextNumber, status: 'upcoming' },
     });
+
+    const seed = await this.seedService.createRoundSeed(gameId, round.id, preferredClientSeed);
+
+    // Bind the committed seed to the round so the commitment can't be swapped.
+    await this.prisma.gameRound.update({
+      where: { id: round.id },
+      data: { seedId: seed.seedId },
+    });
+
+    return { round: { ...round, seedId: seed.seedId }, seed };
   }
 
   // ----------------------------------------------------------
   // Cleanup & maintenance
   // ----------------------------------------------------------
 
-  /**
-   * Finds rounds stuck in non-terminal states beyond their expected
-   * duration and handles them gracefully.
-   *
-   * Stuck criteria:
-   *   - betting_open with bettingOpensAt older than config.bettingDurationSeconds + buffer
-   *   - betting_closed with no result after config.resultProcessingDelayMs + buffer
-   *   - result_processing with no settlement after extended timeout
-   */
   async cleanupExpired(): Promise<{
     closedBetting: number;
     failedResult: number;
     failedSettlement: number;
   }> {
-    const STALE_BUFFER_MS = 30_000; // 30 second grace period
+    const STALE_BUFFER_MS = 30_000;
     const now = new Date();
 
-    // 1. Close rounds stuck in betting_open past their deadline
     const staleBettingOpen = await this.prisma.gameRound.findMany({
       where: {
         status: 'betting_open',
@@ -431,9 +445,7 @@ export class RoundLifecycleService {
       },
       include: {
         game: {
-          include: {
-            configurations: { where: { isActive: true }, take: 1 },
-          },
+          include: { configurations: { where: { isActive: true }, take: 1 } },
         },
       },
     });
@@ -442,7 +454,6 @@ export class RoundLifecycleService {
     for (const round of staleBettingOpen) {
       const config = round.game.configurations[0];
       const bettingDuration = (config?.bettingDurationSeconds ?? 30) * 1000 + STALE_BUFFER_MS;
-
       if (round.bettingOpensAt && now.getTime() - round.bettingOpensAt.getTime() > bettingDuration) {
         try {
           await this.closeBetting(round.id);
@@ -454,12 +465,8 @@ export class RoundLifecycleService {
       }
     }
 
-    // 2. Close rounds stuck in betting_closed (no result generated)
     const staleBettingClosed = await this.prisma.gameRound.findMany({
-      where: {
-        status: 'betting_closed',
-        closedAt: { lt: new Date(now.getTime() - 60_000) },
-      },
+      where: { status: 'betting_closed', closedAt: { lt: new Date(now.getTime() - 60_000) } },
     });
 
     let failedResult = 0;
@@ -473,12 +480,8 @@ export class RoundLifecycleService {
       }
     }
 
-    // 3. Mark rounds stuck in result_processing as closed (manual review needed)
     const staleResultProcessing = await this.prisma.gameRound.findMany({
-      where: {
-        status: 'result_processing',
-        updatedAt: { lt: new Date(now.getTime() - 300_000) }, // 5 min stale
-      },
+      where: { status: 'result_processing', updatedAt: { lt: new Date(now.getTime() - 300_000) } },
     });
 
     let failedSettlement = 0;
@@ -488,42 +491,123 @@ export class RoundLifecycleService {
         failedSettlement++;
         this.logger.warn(`Force-settled stale round ${round.id}`);
       } catch (err) {
-        // If settlement fails, mark as closed for manual review
-        await this.prisma.gameRound.update({
-          where: { id: round.id },
-          data: { status: 'closed', updatedAt: new Date() },
-        });
+        // Never leave money in limbo: refund every pending bet in the round.
+        await this.refundRoundBets(round.id, `Forced close after settlement failure: ${err.message}`);
         failedSettlement++;
-        this.logger.error(
-          `Failed to settle round ${round.id}, marked as closed: ${err.message}`,
-        );
+        this.logger.error(`Failed to settle round ${round.id}, refunded pending bets: ${err.message}`);
       }
     }
 
     return { closedBetting, failedResult, failedSettlement };
   }
 
+  /**
+   * Refunds all pending bets in a round and marks it closed. Used as a
+   * safety net for rounds that can never settle (missing seed, crash,
+   * repeated driver errors). Runs in one transaction; every refund uses
+   * its own idempotent ledger key.
+   */
+  async refundRoundBets(roundId: string, reason: string): Promise<number> {
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await this.lockRound(tx, roundId);
+      if (locked.status === 'settled') return 0;
+
+      const round = await tx.gameRound.findUnique({
+        where: { id: roundId },
+        include: { bets: { where: { status: 'pending' } } },
+      });
+      if (!round) throw new NotFoundException(`Round ${roundId} not found`);
+
+      let refunded = 0;
+      for (const bet of round.bets) {
+        const walletRows = await tx.$queryRaw<
+          { id: string; coinBalance: Decimal; totalCoinsEarned: Decimal }[]
+        >`SELECT id, "coinBalance", "totalCoinsEarned" FROM wallet_accounts WHERE "playerId" = ${bet.playerId} FOR UPDATE`;
+        if (!walletRows || walletRows.length === 0) continue;
+
+        const wallet = walletRows[0];
+        const newBalance = new Decimal(wallet.coinBalance).add(bet.amount);
+        const txRef = `bet_refund_${bet.id}`;
+
+        try {
+          await tx.walletTransaction.create({
+            data: {
+              walletAccountId: wallet.id,
+              playerId: bet.playerId,
+              type: 'bet_refund',
+              currency: 'coins',
+              amount: bet.amount,
+              balanceBefore: wallet.coinBalance,
+              balanceAfter: newBalance,
+              referenceType: 'game_round',
+              referenceId: round.id,
+              description: `Refund: ${reason}`,
+              idempotencyKey: txRef,
+              metadata: JSON.stringify({ betId: bet.id }),
+            },
+          });
+        } catch (e: unknown) {
+          if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+            continue; // already refunded in a prior retry
+          }
+          throw e;
+        }
+
+        await tx.walletAccount.update({
+          where: { id: wallet.id },
+          data: {
+            coinBalance: newBalance,
+            totalCoinsEarned: new Decimal(wallet.totalCoinsEarned).add(bet.amount),
+          },
+        });
+
+        await tx.gameBet.update({
+          where: { id: bet.id },
+          data: { status: 'refunded', settledAt: new Date() },
+        });
+        refunded++;
+      }
+
+      await tx.gameRound.update({
+        where: { id: roundId },
+        data: {
+          status: refunded > 0 ? 'closed' : locked.status === 'result_processing' ? 'closed' : locked.status,
+          updatedAt: new Date(),
+        },
+      });
+
+      if (refunded > 0) {
+        this.logger.warn(`Refunded ${refunded} pending bets in round ${roundId}`);
+      }
+      return refunded;
+    });
+  }
+
   // ----------------------------------------------------------
   // Helpers
   // ----------------------------------------------------------
 
+  private async lockRound(tx: Prisma.TransactionClient, roundId: string): Promise<GameRound> {
+    const rows = await tx.$queryRaw<GameRound[]>`SELECT * FROM game_rounds WHERE id = ${roundId} FOR UPDATE`;
+    if (!rows || rows.length === 0) {
+      throw new NotFoundException(`Round ${roundId} not found`);
+    }
+    return rows[0];
+  }
+
   private ensureValidTransition(currentStatus: string, targetStatus: string): void {
     const allowed = this.VALID_TRANSITIONS[currentStatus];
     if (!allowed || !allowed.includes(targetStatus)) {
-      throw new ConflictException(
-        `Invalid state transition: ${currentStatus} → ${targetStatus}`,
-      );
+      throw new ConflictException(`Invalid state transition: ${currentStatus} → ${targetStatus}`);
     }
   }
 
-  private buildResultData(winningOption: GameOption, round: GameRound): any {
-    return {
-      winningOptionId: winningOption.id,
-      winningOptionName: winningOption.name,
-      winningOptionLabel: winningOption.label,
-      multiplier: winningOption.multiplier.toString(),
-      roundNumber: round.roundNumber,
-      processedAt: new Date().toISOString(),
-    };
+  private resolvePayoutMultiplier(bet: { multiplierSnapshot?: Decimal | null; option: GameOption }, resultData: Record<string, unknown> | null): Decimal {
+    // Driver-provided multiplier override (slots) first.
+    if (resultData && typeof resultData.multiplier === 'number' && resultData.multiplier > 0) {
+      return new Decimal(resultData.multiplier);
+    }
+    if (bet.multiplierSnapshot) return new Decimal(bet.multiplierSnapshot);
+    return new Decimal(bet.option.multiplier);
   }
 }

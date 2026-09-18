@@ -1,7 +1,8 @@
 // ============================================================
 // GAME GATEWAY — Real-time game events
 // Namespace: /game
-// Server-authoritative: all bets validated via GameEngineService
+// Server-authoritative: all bets validated via GameEngineService,
+// all round state broadcast from GameSchedulerService.
 // ============================================================
 
 import {
@@ -13,26 +14,28 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Logger, OnModuleInit } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { BaseGateway } from './base.gateway';
 import { GameEngineService } from '../games/game-engine.service';
+import { GAME_EVENTS } from '../games/game-scheduler.service';
+import { SeedService } from '../games/seed.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { randomUUID } from 'crypto';
+import { PrismaService } from '../../prisma/prisma.service';
+import { OnEvent } from '@nestjs/event-emitter';
 
 // ----------------------------------------------------------
-// DTOs for incoming events
+// Payload contracts
 // ----------------------------------------------------------
 
 interface JoinGamePayload {
   gameId: string;
 }
-
 interface LeaveGamePayload {
   gameId: string;
 }
-
 interface PlaceBetPayload {
   gameId: string;
   optionId: string;
@@ -48,32 +51,32 @@ interface PlaceBetPayload {
   namespace: '/game',
   cors: { origin: '*' },
 })
-export class GameGateway extends BaseGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class GameGateway extends BaseGateway implements OnModuleInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server!: Server;
 
   private readonly gameLogger = new Logger(GameGateway.name);
-
-  // Track which socket IDs are in which game rooms
   private readonly playerGames = new Map<string, string>();
 
   constructor(
     jwtService: JwtService,
     private readonly gameEngine: GameEngineService,
+    private readonly prisma: PrismaService,
+    private readonly seedService: SeedService,
   ) {
     super(jwtService, GameGateway.name);
   }
 
-  // ----------------------------------------------------------
-  // Connection lifecycle
-  // ----------------------------------------------------------
+  onModuleInit(): void {
+    // Gateway is a listener; the scheduler emits on the bus. This ordering
+    // matters only for broadcast and is intentionally event-driven.
+  }
 
   async handleConnection(client: Socket): Promise<void> {
     await super.handleConnection(client);
   }
 
   handleDisconnect(client: Socket): void {
-    // Auto-leave any game room the player was in
     const gameId = this.playerGames.get(client.id);
     if (gameId) {
       this.handleLeaveGame(client, { gameId });
@@ -82,26 +85,21 @@ export class GameGateway extends BaseGateway implements OnGatewayConnection, OnG
   }
 
   // ----------------------------------------------------------
-  // Event handlers
+  // Client actions
   // ----------------------------------------------------------
 
   @SubscribeMessage('join_game')
-  async handleJoinGame(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: JoinGamePayload,
-  ): Promise<void> {
+  async handleJoinGame(@ConnectedSocket() client: Socket, @MessageBody() payload: JoinGamePayload): Promise<void> {
     const user = this.getUserInfo(client);
     if (!user) {
-      client.emit('error', { message: 'Not authenticated' });
+      client.emit('error', { message: 'Not authenticated', code: 'UNAUTHENTICATED' });
+      return;
+    }
+    if (!payload?.gameId) {
+      client.emit('error', { message: 'gameId is required', code: 'BAD_PAYLOAD' });
       return;
     }
 
-    if (!payload.gameId) {
-      client.emit('error', { message: 'gameId is required' });
-      return;
-    }
-
-    // Leave previous game if already in one
     const previousGameId = this.playerGames.get(client.id);
     if (previousGameId) {
       this.leaveRoom(client, `game:${previousGameId}`);
@@ -112,90 +110,67 @@ export class GameGateway extends BaseGateway implements OnGatewayConnection, OnG
     this.joinRoom(client, room);
     this.playerGames.set(client.id, payload.gameId);
 
-    // Fetch current game state for the joining player
     try {
-      const gameState = await this.gameEngine.getGameState(payload.gameId);
+      const state = await this.gameEngine.getGameState(payload.gameId);
+      const totals = await this.getBetTotals(payload.gameId);
       client.emit('round_update', {
         gameId: payload.gameId,
-        round: gameState.currentRound,
-        options: gameState.options,
-        config: gameState.config,
-        betConfig: gameState.betConfig,
+        round: state.currentRound,
+        options: state.options,
+        config: state.config,
+        betConfig: state.betConfig,
+        seed: state.seedState,
+        betTotals: totals,
+        playerCount: this.getRoomMemberCount(room),
+        serverTime: Date.now(),
+      });
+
+      this.broadcastToRoom(room, 'round_update', {
+        gameId: payload.gameId,
+        event: 'player_joined',
         playerCount: this.getRoomMemberCount(room),
       });
     } catch (err) {
-      this.gameLogger.error(`Failed to fetch game state: ${err.message}`);
-      client.emit('error', { message: 'Failed to load game state' });
-      return;
+      this.gameLogger.error(`Failed to load game state: ${err.message}`);
+      client.emit('error', { message: 'Failed to load game state', code: 'STATE_ERROR' });
     }
-
-    // Notify the room about the new player count
-    this.broadcastToRoom(room, 'round_update', {
-      gameId: payload.gameId,
-      event: 'player_joined',
-      playerCount: this.getRoomMemberCount(room),
-    });
-
-    this.gameLogger.log(`Player ${user.username} joined game ${payload.gameId}`);
   }
 
   @SubscribeMessage('leave_game')
-  handleLeaveGame(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: LeaveGamePayload,
-  ): void {
+  handleLeaveGame(@ConnectedSocket() client: Socket, @MessageBody() payload: LeaveGamePayload): void {
     const user = this.getUserInfo(client);
-    if (!user) {
-      client.emit('error', { message: 'Not authenticated' });
-      return;
+    if (user && payload?.gameId) {
+      this.leaveRoom(client, `game:${payload.gameId}`);
+      this.playerGames.delete(client.id);
+      this.broadcastToRoom(`game:${payload.gameId}`, 'round_update', {
+        gameId: payload.gameId,
+        event: 'player_left',
+        playerCount: this.getRoomMemberCount(`game:${payload.gameId}`),
+      });
     }
-
-    if (!payload.gameId) {
-      client.emit('error', { message: 'gameId is required' });
-      return;
-    }
-
-    const room = `game:${payload.gameId}`;
-    this.leaveRoom(client, room);
-    this.playerGames.delete(client.id);
-
-    // Notify remaining players
-    this.broadcastToRoom(room, 'round_update', {
-      gameId: payload.gameId,
-      event: 'player_left',
-      playerCount: this.getRoomMemberCount(room),
-    });
-
-    this.gameLogger.log(`Player ${user.username} left game ${payload.gameId}`);
   }
 
   @SubscribeMessage('place_bet')
-  async handlePlaceBet(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: PlaceBetPayload,
-  ): Promise<void> {
+  async handlePlaceBet(@ConnectedSocket() client: Socket, @MessageBody() payload: PlaceBetPayload): Promise<void> {
     const user = this.getUserInfo(client);
     if (!user) {
-      client.emit('error', { message: 'Not authenticated' });
+      client.emit('error', { message: 'Not authenticated', code: 'UNAUTHENTICATED' });
       return;
     }
 
-    // Validate payload
-    if (!payload.gameId || !payload.optionId || payload.amount === undefined) {
-      client.emit('error', { message: 'gameId, optionId, and amount are required' });
+    if (!payload?.gameId || !payload?.optionId || payload.amount === undefined) {
+      client.emit('error', { message: 'gameId, optionId, and amount are required', code: 'BAD_PAYLOAD' });
       return;
     }
-
     if (typeof payload.amount !== 'number' || payload.amount <= 0) {
-      client.emit('error', { message: 'Bet amount must be a positive number' });
+      client.emit('error', { message: 'Bet amount must be a positive number', code: 'BAD_AMOUNT' });
       return;
     }
 
-    // Generate idempotency key if not provided (server-side, CSPRNG)
     const idempotencyKey = payload.idempotencyKey ?? `${user.userId}-${payload.gameId}-${randomUUID()}`;
 
     try {
-      // Server-authoritative: validate and process the bet
+      // Server-authoritative: validate + debit + record atomically.
       const result = await this.gameEngine.placeBet(
         user.userId,
         payload.gameId,
@@ -204,79 +179,197 @@ export class GameGateway extends BaseGateway implements OnGatewayConnection, OnG
         idempotencyKey,
       );
 
-      // Send confirmation to the bettor
-      client.emit('bet_placed', {
-        bet: result.bet,
-        balanceAfter: result.balanceAfter,
-      });
-
-      // Send updated balance
-      client.emit('balance_update', {
-        balance: result.balanceAfter,
-      });
-
-      // Broadcast round update to all players in the game room
+      const totals = await this.getBetTotals(payload.gameId);
       const room = `game:${payload.gameId}`;
+
+      client.emit('bet_placed', { bet: result.bet, balanceAfter: result.balanceAfter });
+      client.emit('balance_update', { balance: result.balanceAfter });
+
       this.broadcastToRoom(room, 'round_update', {
         gameId: payload.gameId,
         round: result.round,
         event: 'new_bet',
         totalBetAmount: result.round.totalBetAmount,
+        betTotals: totals,
         playerCount: this.getRoomMemberCount(room),
+        serverTime: Date.now(),
       });
 
-      this.gameLogger.log(
-        `Bet placed: player=${user.username} game=${payload.gameId} option=${payload.optionId} amount=${payload.amount}`,
-      );
+      // Personal result (win/loss) is delivered together with the round result.
+      this.gameLogger.log(`Bet placed: player=${user.username} game=${payload.gameId} amount=${payload.amount}`);
     } catch (err) {
       this.gameLogger.error(`Bet failed for ${user.username}: ${err.message}`);
-      client.emit('error', {
-        message: err.message || 'Failed to place bet',
-        code: 'BET_FAILED',
-      });
+      client.emit('error', { message: err.message || 'Failed to place bet', code: 'BET_FAILED' });
+    }
+  }
+
+  @SubscribeMessage('get_seed_state')
+  async handleGetSeed(@ConnectedSocket() client: Socket): Promise<void> {
+    const user = this.getUserInfo(client);
+    if (!user) return;
+    const gameId = this.playerGames.get(client.id);
+    if (!gameId) {
+      client.emit('error', { message: 'Join a game first', code: 'NOT_IN_GAME' });
+      return;
+    }
+    // Send the UNREVEALED commitment only — serverSeed stays secret until settle.
+    const state = await this.gameEngine.getGameState(gameId);
+    client.emit('seed_state', state.seedState
+      ? { ...state.seedState, algorithm: 'HMAC-SHA256', revealedServerSeed: null }
+      : null);
+  }
+
+  @SubscribeMessage('rotate_seed')
+  async handleRotateSeed(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { clientSeed?: string },
+  ): Promise<void> {
+    const user = this.getUserInfo(client);
+    if (!user) return;
+    const gameId = this.playerGames.get(client.id);
+    if (!gameId) {
+      client.emit('error', { message: 'Join a game first', code: 'NOT_IN_GAME' });
+      return;
+    }
+    try {
+      const result = await this.seedService.setClientSeed(user.userId, gameId, payload?.clientSeed ?? '');
+      client.emit('seed_rotated', result);
+    } catch (err) {
+      client.emit('error', { message: err.message, code: 'SEED_REJECTED' });
     }
   }
 
   // ----------------------------------------------------------
-  // Server-initiated events (called by cron / admin)
+  // Server-initiated broadcasts (from the scheduler bus)
   // ----------------------------------------------------------
 
-  /**
-   * Broadcasts a round result to all players in a game room.
-   * Called externally after round processing completes.
-   */
-  broadcastRoundResult(
-    gameId: string,
-    roundId: string,
-    result: {
-      winningOptionId: string;
-      winningLabel: string;
-      totalPayout: number;
-      totalWinners: number;
-    },
-  ): void {
-    const room = `game:${gameId}`;
-    this.broadcastToRoom(room, 'round_result', {
-      gameId,
-      roundId,
-      result,
+  @OnEvent(GAME_EVENTS.round_started)
+  async onRoundStarted(payload: {
+    gameId: string;
+    round: { id: string; roundNumber: number; status: string };
+    seedState?: { serverSeedHash: string; clientSeed: string; nonce: number };
+  }): Promise<void> {
+    const room = `game:${payload.gameId}`;
+    const totals = await this.getBetTotals(payload.gameId);
+    this.broadcastToRoom(room, 'round_started', {
+      gameId: payload.gameId,
+      round: payload.round,
+      seed: payload.seedState ?? null,
+      betTotals: totals,
+      serverTime: Date.now(),
     });
   }
 
-  /**
-   * Broadcasts a bet result (win/loss) to a specific player.
-   */
-  broadcastBetResult(
-    socketId: string,
-    betId: string,
-    result: {
-      status: 'won' | 'lost';
-      payout: number;
-    },
-  ): void {
-    this.sendToUser(socketId, 'bet_result', {
-      betId,
-      ...result,
+  @OnEvent(GAME_EVENTS.round_closed)
+  async onRoundClosed(payload: { gameId: string; round: { id: string; status: string } }): Promise<void> {
+    const room = `game:${payload.gameId}`;
+    const totals = await this.getBetTotals(payload.gameId);
+    this.broadcastToRoom(room, 'round_closed', {
+      gameId: payload.gameId,
+      round: payload.round,
+      betTotals: totals,
+      serverTime: Date.now(),
     });
+  }
+
+  @OnEvent(GAME_EVENTS.round_result)
+  onRoundResult(payload: {
+    gameId: string;
+    roundId: string;
+    roundNumber: number;
+    winningOptionId: string | null;
+    winningLabel: string;
+    resultData: Record<string, unknown>;
+    serverSeedHash: string;
+    clientSeed: string;
+    nonce: number;
+    revealedServerSeed: string;
+    totalPayout: string;
+    totalWinners: number;
+  }): void {
+    const room = `game:${payload.gameId}`;
+    this.broadcastToRoom(room, 'round_result', {
+      gameId: payload.gameId,
+      roundId: payload.roundId,
+      roundNumber: payload.roundNumber,
+      result: {
+        winningOptionId: payload.winningOptionId,
+        winningLabel: payload.winningLabel,
+        resultData: payload.resultData,
+        totalPayout: payload.totalPayout,
+        totalWinners: payload.totalWinners,
+      },
+      fairPlay: {
+        serverSeedHash: payload.serverSeedHash,
+        clientSeed: payload.clientSeed,
+        nonce: payload.nonce,
+        revealedServerSeed: payload.revealedServerSeed,
+        url: `${process.env.API_BASE_URL ?? ''}/api/v1/games/verify`,
+      },
+      serverTime: Date.now(),
+    });
+
+    // Send personal settlement to each player who bet in this round.
+    void this.sendPersonalSettlements(payload.gameId, payload.roundId, payload.resultData);
+  }
+
+  private async sendPersonalSettlements(
+    gameId: string,
+    roundId: string,
+    resultData: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      const bets = await this.prisma.gameBet.findMany({
+        where: { roundId },
+        include: { player: true, option: true },
+      });
+      const room = `game:${gameId}`;
+      const members = this.rooms.get(room) ?? new Set<string>();
+      for (const bet of bets) {
+        for (const [socketId, info] of this.connectedUsers.entries()) {
+          if (info.userId !== bet.playerId || !members.has(socketId)) continue;
+          const won = bet.status === 'won';
+          this.server.to(socketId).emit('bet_result', {
+            betId: bet.id,
+            roundId,
+            gameId,
+            optionId: bet.optionId,
+            status: won ? 'won' : 'lost',
+            amount: bet.amount.toString(),
+            payout: bet.payout ? bet.payout.toString() : null,
+          });
+        }
+      }
+    } catch (err) {
+      this.gameLogger.error(`sendPersonalSettlements failed: ${err.message}`);
+    }
+  }
+
+  // ----------------------------------------------------------
+  // Helpers
+  // ----------------------------------------------------------
+
+  private async getBetTotals(gameId: string): Promise<Record<string, { count: number; total: string }>> {
+    try {
+      const current = await this.prisma.gameRound.findFirst({
+        where: { gameId, status: { notIn: ['settled', 'closed'] } },
+        orderBy: { roundNumber: 'desc' },
+      });
+      if (!current) return {};
+      const bets = await this.prisma.gameBet.findMany({
+        where: { roundId: current.id },
+        select: { optionId: true, amount: true },
+      });
+      const totals: Record<string, { count: number; total: string }> = {};
+      for (const bet of bets) {
+        const entry = totals[bet.optionId] ?? { count: 0, total: '0' };
+        entry.count += 1;
+        entry.total = new Decimal(entry.total).add(new Decimal(bet.amount)).toString();
+        totals[bet.optionId] = entry;
+      }
+      return totals;
+    } catch {
+      return {};
+    }
   }
 }

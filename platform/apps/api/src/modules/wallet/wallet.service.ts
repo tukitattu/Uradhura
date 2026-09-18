@@ -1,21 +1,27 @@
 // ============================================================
-// WALLET SERVICE — IMMUTABLE LEDGER
+// WALLET SERVICE — Public wallet facade
+//
+// All balance mutations delegate to WalletIntegrationService (the
+// single atomic, immutable ledger implementation). This facade keeps
+// the controller-facing signatures stable.
 // ============================================================
 
 import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { Prisma } from '@prisma/client';
-import { randomUUID } from 'crypto';
+import { WalletIntegrationService } from '../games/wallet-integration.service';
 
 @Injectable()
 export class WalletService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private ledger: WalletIntegrationService,
+  ) {}
 
   async getBalance(playerId: string) {
     const wallet = await this.prisma.walletAccount.findUnique({
@@ -46,85 +52,17 @@ export class WalletService {
     currency: 'coins' | 'diamonds' = 'coins',
     createdBy?: string,
   ) {
-    if (amount === undefined || amount === null) {
-      throw new BadRequestException('Amount is required');
-    }
-
-    const amountDecimal = new Decimal(amount);
-    if (amountDecimal.lte(0)) {
-      throw new BadRequestException('Amount must be positive');
-    }
-
-    const existing = await this.prisma.walletTransaction.findUnique({
-      where: { idempotencyKey },
-    });
-    if (existing) {
-      return existing;
-    }
-
-    const result = await this.prisma.$transaction(
-      async (tx) => {
-        const wallet = await tx.$queryRaw<
-          { id: string; coin_balance: Decimal; diamond_balance: Decimal }[]
-        >`SELECT id, coin_balance, diamond_balance FROM wallet_accounts WHERE player_id = ${playerId} FOR UPDATE`;
-
-        if (!wallet || wallet.length === 0) {
-          throw new NotFoundException('Wallet not found for this player');
-        }
-
-        const walletRow = wallet[0];
-        const currentBalance =
-          currency === 'coins' ? walletRow.coin_balance : walletRow.diamond_balance;
-
-        if (currentBalance.lessThan(amountDecimal)) {
-          throw new BadRequestException(
-            `Insufficient ${currency} balance. Available: ${currentBalance}, Requested: ${amountDecimal}`,
-          );
-        }
-
-        const newBalance = currentBalance.minus(amountDecimal);
-        const balanceField = currency === 'coins' ? 'coinBalance' : 'diamondBalance';
-        const totalSpentField =
-          currency === 'coins' ? 'totalCoinsSpent' : 'totalDiamondsSpent';
-
-        const updateData: Prisma.WalletAccountUpdateInput = {
-          [balanceField]: newBalance,
-        };
-        updateData[totalSpentField] = { increment: amountDecimal };
-
-        const updatedWallet = await tx.walletAccount.update({
-          where: { id: walletRow.id },
-          data: updateData,
-        });
-
-        const debitTypeMap: Record<string, string> = {
-          coins: 'bet_debit',
-          diamonds: 'gift_send',
-        };
-
-        const transaction = await tx.walletTransaction.create({
-          data: {
-            walletAccountId: walletRow.id,
-            playerId,
-            type: debitTypeMap[currency],
-            currency,
-            amount: amountDecimal,
-            balanceBefore: currentBalance,
-            balanceAfter: newBalance,
-            referenceType,
-            referenceId,
-            description,
-            idempotencyKey,
-            createdBy,
-          },
-        });
-
-        return transaction;
-      },
-      { timeout: 10000 },
+    return this.withKey(idempotencyKey, () =>
+      this.ledger.debit(
+        playerId,
+        amount,
+        referenceType,
+        referenceId,
+        description,
+        idempotencyKey,
+        { currency, createdBy },
+      ).then((r) => r.transaction),
     );
-
-    return result;
   }
 
   async credit(
@@ -137,79 +75,24 @@ export class WalletService {
     currency: 'coins' | 'diamonds' = 'coins',
     createdBy?: string,
   ) {
-    if (amount === undefined || amount === null) {
-      throw new BadRequestException('Amount is required');
-    }
-
-    const amountDecimal = new Decimal(amount);
-    if (amountDecimal.lte(0)) {
-      throw new BadRequestException('Amount must be positive');
-    }
-
-    const existing = await this.prisma.walletTransaction.findUnique({
-      where: { idempotencyKey },
-    });
-    if (existing) {
-      return existing;
-    }
-
-    const result = await this.prisma.$transaction(
-      async (tx) => {
-        const wallet = await tx.$queryRaw<
-          { id: string; coin_balance: Decimal; diamond_balance: Decimal }[]
-        >`SELECT id, coin_balance, diamond_balance FROM wallet_accounts WHERE player_id = ${playerId} FOR UPDATE`;
-
-        if (!wallet || wallet.length === 0) {
-          throw new NotFoundException('Wallet not found for this player');
-        }
-
-        const walletRow = wallet[0];
-        const currentBalance =
-          currency === 'coins' ? walletRow.coin_balance : walletRow.diamond_balance;
-
-        const newBalance = currentBalance.plus(amountDecimal);
-        const balanceField = currency === 'coins' ? 'coinBalance' : 'diamondBalance';
-        const totalEarnedField =
-          currency === 'coins' ? 'totalCoinsEarned' : 'totalDiamondsEarned';
-
-        const updateData: Prisma.WalletAccountUpdateInput = {
-          [balanceField]: newBalance,
-        };
-        updateData[totalEarnedField] = { increment: amountDecimal };
-
-        await tx.walletAccount.update({
-          where: { id: walletRow.id },
-          data: updateData,
-        });
-
-        const creditTypeMap: Record<string, string> = {
-          coins: 'bet_credit',
-          diamonds: 'gift_receive',
-        };
-
-        const transaction = await tx.walletTransaction.create({
-          data: {
-            walletAccountId: walletRow.id,
-            playerId,
-            type: creditTypeMap[currency],
-            currency,
-            amount: amountDecimal,
-            balanceBefore: currentBalance,
-            balanceAfter: newBalance,
-            referenceType,
-            referenceId,
-            description,
-            idempotencyKey,
-            createdBy,
-          },
-        });
-
-        return transaction;
-      },
-      { timeout: 10000 },
+    return this.withKey(idempotencyKey, () =>
+      this.ledger.credit(
+        playerId,
+        amount,
+        referenceType,
+        referenceId,
+        description,
+        idempotencyKey,
+        { currency, createdBy },
+      ).then((r) => r.transaction),
     );
+  }
 
-    return result;
+  private async withKey<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    if (!key || key.trim().length === 0) {
+      throw new BadRequestException('idempotencyKey is required for wallet mutations');
+    }
+    return fn();
   }
 
   async getTransactionHistory(
@@ -262,103 +145,9 @@ export class WalletService {
     adminId: string,
     currency: 'coins' | 'diamonds' = 'coins',
   ) {
-    const amountDecimal = new Decimal(amount);
-
-    if (amountDecimal.eq(0)) {
-      throw new BadRequestException('Adjustment amount cannot be zero');
-    }
-
-    if (!reason || reason.trim().length === 0) {
-      throw new BadRequestException('Reason is required for admin adjustments');
-    }
-
-    const player = await this.prisma.player.findUnique({ where: { id: playerId } });
-    if (!player) throw new NotFoundException('Player not found');
-
-    const idempotencyKey = `admin-adjust-${adminId}-${playerId}-${currency}-${randomUUID()}`;
-
-    const wallet = await this.prisma.walletAccount.findUnique({ where: { playerId } });
-    if (!wallet) throw new NotFoundException('Wallet not found');
-
-    if (amountDecimal.lt(0)) {
-      const currentBalance =
-        currency === 'coins' ? wallet.coinBalance : wallet.diamondBalance;
-      if (currentBalance.lessThan(amountDecimal.abs())) {
-        throw new BadRequestException(
-          `Adjustment would result in negative balance. Available: ${currentBalance}, Debit: ${amountDecimal.abs()}`,
-        );
-      }
-    }
-
-    const result = await this.prisma.$transaction(
-      async (tx) => {
-        const walletRow = await tx.$queryRaw<
-          { id: string; coin_balance: Decimal; diamond_balance: Decimal }[]
-        >`SELECT id, coin_balance, diamond_balance FROM wallet_accounts WHERE player_id = ${playerId} FOR UPDATE`;
-
-        if (!walletRow || walletRow.length === 0) {
-          throw new NotFoundException('Wallet not found');
-        }
-
-        const walletData = walletRow[0];
-        const currentBalance =
-          currency === 'coins' ? walletData.coin_balance : walletData.diamond_balance;
-        const newBalance = currentBalance.plus(amountDecimal);
-
-        if (newBalance.lessThan(0)) {
-          throw new BadRequestException(
-            `Adjustment would result in negative balance. Available: ${currentBalance}, Adjustment: ${amountDecimal}`,
-          );
-        }
-
-        const balanceField = currency === 'coins' ? 'coinBalance' : 'diamondBalance';
-        const totalEarnedField =
-          currency === 'coins' ? 'totalCoinsEarned' : 'totalDiamondsEarned';
-        const totalSpentField =
-          currency === 'coins' ? 'totalCoinsSpent' : 'totalDiamondsSpent';
-
-        const updateData: Prisma.WalletAccountUpdateInput = {
-          [balanceField]: newBalance,
-        };
-
-        if (amountDecimal.gte(0)) {
-          updateData[totalEarnedField] = { increment: amountDecimal };
-        } else {
-          updateData[totalSpentField] = { increment: amountDecimal.abs() };
-        }
-
-        await tx.walletAccount.update({
-          where: { id: walletData.id },
-          data: updateData,
-        });
-
-        const transaction = await tx.walletTransaction.create({
-          data: {
-            walletAccountId: walletData.id,
-            playerId,
-            type: 'admin_adjustment',
-            currency,
-            amount: amountDecimal,
-            balanceBefore: currentBalance,
-            balanceAfter: newBalance,
-            referenceType: 'admin',
-            referenceId: adminId,
-            description: `Admin adjustment: ${reason}`,
-            idempotencyKey,
-            metadata: JSON.stringify({
-              adjustmentReason: reason,
-              adjustedBy: adminId,
-            }),
-            createdBy: adminId,
-          },
-        });
-
-        return transaction;
-      },
-      { timeout: 10000 },
-    );
-
-    return result;
+    return this.ledger
+      .adjustBalance(playerId, amount, reason, adminId, { currency })
+      .then((r) => r.transaction);
   }
 
   // ============================================================
@@ -420,7 +209,9 @@ export class WalletService {
     adminId: string,
     reason: string,
   ) {
-    return this.adjustBalance(playerId, amount, reason, adminId, currency);
+    return this.ledger
+      .adjustBalance(playerId, amount, reason, adminId, { currency })
+      .then((r) => r.transaction);
   }
 
   async getStats() {
@@ -455,43 +246,16 @@ export class WalletService {
       diamondEarned,
       diamondSpent,
       recentTransactions,
-      topEarners,
     ] = await Promise.all([
       this.prisma.walletAccount.count(),
-      this.prisma.walletAccount.aggregate({
-        _sum: { coinBalance: true },
-      }),
-      this.prisma.walletAccount.aggregate({
-        _sum: { diamondBalance: true },
-      }),
-      this.prisma.walletAccount.aggregate({
-        _sum: { totalCoinsEarned: true },
-      }),
-      this.prisma.walletAccount.aggregate({
-        _sum: { totalCoinsSpent: true },
-      }),
-      this.prisma.walletAccount.aggregate({
-        _sum: { totalDiamondsEarned: true },
-      }),
-      this.prisma.walletAccount.aggregate({
-        _sum: { totalDiamondsSpent: true },
-      }),
+      this.prisma.walletAccount.aggregate({ _sum: { coinBalance: true } }),
+      this.prisma.walletAccount.aggregate({ _sum: { diamondBalance: true } }),
+      this.prisma.walletAccount.aggregate({ _sum: { totalCoinsEarned: true } }),
+      this.prisma.walletAccount.aggregate({ _sum: { totalCoinsSpent: true } }),
+      this.prisma.walletAccount.aggregate({ _sum: { totalDiamondsEarned: true } }),
+      this.prisma.walletAccount.aggregate({ _sum: { totalDiamondsSpent: true } }),
       this.prisma.walletTransaction.count({
-        where: {
-          createdAt: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-          },
-        },
-      }),
-      this.prisma.walletAccount.findMany({
-        orderBy: { totalCoinsEarned: 'desc' },
-        take: 10,
-        select: {
-          playerId: true,
-          totalCoinsEarned: true,
-          totalDiamondsEarned: true,
-          player: { select: { id: true, username: true, displayName: true, avatar: true } },
-        },
+        where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
       }),
     ]);
 
@@ -504,7 +268,16 @@ export class WalletService {
       totalDiamondsEarned: diamondEarned._sum.totalDiamondsEarned || new Decimal(0),
       totalDiamondsSpent: diamondSpent._sum.totalDiamondsSpent || new Decimal(0),
       transactionsToday: recentTransactions,
-      topEarners,
+      topEarners: await this.prisma.walletAccount.findMany({
+        orderBy: { totalCoinsEarned: 'desc' },
+        take: 10,
+        select: {
+          playerId: true,
+          totalCoinsEarned: true,
+          totalDiamondsEarned: true,
+          player: { select: { id: true, username: true, displayName: true, avatar: true } },
+        },
+      }),
     };
   }
 }

@@ -210,6 +210,7 @@ export class EconomyController {
         giftId: { type: 'string', description: 'Gift UUID' },
         quantity: { type: 'number', example: 1 },
         roomId: { type: 'string', description: 'Optional live room UUID' },
+        clientTxnId: { type: 'string', description: 'Optional caller-supplied idempotency key (replay-safe)' },
       },
       required: ['receiverId', 'giftId', 'quantity'],
     },
@@ -219,7 +220,7 @@ export class EconomyController {
   @ApiResponse({ status: 404, description: 'Gift or receiver not found' })
   async sendGift(
     @Request() req: any,
-    @Body() body: { receiverId: string; giftId: string; quantity: number; roomId?: string },
+    @Body() body: { receiverId: string; giftId: string; quantity: number; roomId?: string; clientTxnId?: string },
   ) {
     return this.economyService.sendGift(
       req.user.sub,
@@ -227,6 +228,7 @@ export class EconomyController {
       body.giftId,
       body.quantity,
       body.roomId,
+      body.clientTxnId,
     );
   }
 

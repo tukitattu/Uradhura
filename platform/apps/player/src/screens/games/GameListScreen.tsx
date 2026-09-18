@@ -39,7 +39,7 @@ export default function GameListScreen({ navigation }: any) {
       const q = search.toLowerCase();
       result = result.filter(
         (g: Game) =>
-          g.name.toLowerCase().includes(q) || g.description.toLowerCase().includes(q)
+          g.name.toLowerCase().includes(q) || (g.description ?? '').toLowerCase().includes(q)
       );
     }
     return result;

@@ -5,6 +5,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
+import { WalletIntegrationService } from '../games/wallet-integration.service';
 import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class EconomyService {
   constructor(
     private prisma: PrismaService,
     private walletService: WalletService,
+    private readonly ledger: WalletIntegrationService,
   ) {}
 
   // ============================================================
@@ -115,28 +117,35 @@ export class EconomyService {
   }
 
   async confirmCoinPurchase(orderId: string, adminId: string) {
-    const order = await this.prisma.paymentOrder.findUnique({ where: { id: orderId } });
-    if (!order) throw new NotFoundException('Order not found');
-    if (order.status !== 'pending') throw new BadRequestException('Order already processed');
-
-    // Credit coins to player
     const idempotencyKey = `coin-purchase-${orderId}`;
-    await this.walletService.creditCoins(
-      order.playerId,
-      order.tokenAmount,
-      'coin_purchase',
-      orderId,
-      `Coin package purchase`,
-      idempotencyKey,
-    );
+    const result = await this.prisma.$transaction(async (tx) => {
+      const order = await tx.paymentOrder.findUnique({
+        where: { id: orderId },
+      });
+      if (!order) throw new NotFoundException('Order not found');
+      if (order.status !== 'pending') throw new BadRequestException('Order already processed');
 
-    // Update order status
-    await this.prisma.paymentOrder.update({
-      where: { id: orderId },
-      data: { status: 'completed' },
+      // Credit coins atomically with the order-status update so the two
+      // can never diverge (no paid-but-uncredited or credited-but-pending states).
+      const { transaction } = await this.ledger.credit(
+        order.playerId,
+        order.tokenAmount,
+        'coin_purchase',
+        orderId,
+        `Coin package purchase`,
+        idempotencyKey,
+        { tx, currency: 'coins', createdBy: adminId },
+      );
+
+      const updatedOrder = await tx.paymentOrder.update({
+        where: { id: orderId },
+        data: { status: 'completed', creditedAt: new Date() },
+      });
+
+      return { transaction, updatedOrder };
     });
 
-    return { success: true, coinsAdded: order.tokenAmount };
+    return { success: true, coinsAdded: result.transaction.amount, order: result.updatedOrder };
   }
 
   // ============================================================
@@ -213,39 +222,62 @@ export class EconomyService {
     giftId: string,
     quantity: number,
     roomId?: string,
+    clientTxnId?: string,
   ) {
+    if (senderId === receiverId) {
+      throw new BadRequestException('Cannot send a gift to yourself');
+    }
+
     const gift = await this.prisma.gift.findUnique({ where: { id: giftId } });
     if (!gift || !gift.isActive) {
       throw new NotFoundException('Gift not found');
     }
 
-    const totalCost = Number(gift.coinPrice) * quantity;
+    const totalCost = new Decimal(gift.coinPrice).mul(quantity);
 
-    // Debit sender
-    const idempotencyKey = `gift-${senderId}-${receiverId}-${giftId}-${Date.now()}`;
-    await this.walletService.debitCoins(
-      senderId,
-      totalCost,
-      'gift',
-      giftId,
-      `Sent ${quantity}x ${gift.name}`,
-      idempotencyKey,
-    );
+    // Idempotency: prefer a caller-supplied clientTxnId (replay-safe from the
+    // player's device); otherwise derive one from the gift payload so the same
+    // logical gift can never double-debit.
+    const idempotencyKey =
+      clientTxnId && clientTxnId.trim().length > 0
+        ? clientTxnId
+        : `gift-${senderId}-${receiverId}-${giftId}-${quantity}`;
 
-    // Record gift transaction
-    const transaction = await this.prisma.giftTransaction.create({
-      data: {
-        giftId,
+    return this.prisma.$transaction(async (tx) => {
+      const { wallet: senderWallet } = await this.ledger.debit(
         senderId,
-        receiverId,
-        roomId,
-        quantity,
-        totalCost: new Decimal(totalCost),
-        txRef: idempotencyKey,
-      },
-    });
+        totalCost,
+        'gift',
+        giftId,
+        `Sent ${quantity}x ${gift.name}`,
+        idempotencyKey,
+        { tx, currency: 'coins', metadata: { receiverId, giftId, quantity: `${quantity}` } },
+      );
 
-    return transaction;
+      const { transaction: creditTx } = await this.ledger.credit(
+        receiverId,
+        totalCost,
+        'gift',
+        giftId,
+        `Received ${quantity}x ${gift.name}`,
+        `${idempotencyKey}-credit`,
+        { tx, currency: 'coins', metadata: { senderId, giftId, quantity: `${quantity}` } },
+      );
+
+      const transaction = await tx.giftTransaction.create({
+        data: {
+          giftId,
+          senderId,
+          receiverId,
+          roomId,
+          quantity,
+          totalCost,
+          txRef: idempotencyKey,
+        },
+      });
+
+      return { transaction, senderWallet, creditTx };
+    });
   }
 
   async getGiftTransactions(page = 1, limit = 20) {

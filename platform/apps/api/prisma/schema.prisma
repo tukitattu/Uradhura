@@ -1,6 +1,6 @@
 // ============================================================
-// GAMING + SOCIAL PLATFORM — COMPLETE DATABASE SCHEMA
-// Step 1: Database Foundation
+// URADHURA GAMING + SOCIAL PLATFORM — COMPLETE DATABASE SCHEMA
+// Step 1: Database Foundation (PostgreSQL 16)
 // ============================================================
 
 generator client {
@@ -8,7 +8,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -25,13 +25,21 @@ model AdminUser {
   lastName      String?
   avatar        String?
   isActive      Boolean   @default(true)
+  suspendedAt   DateTime?
+  suspendedReason String?
+  createdBy     String?   // super admin who created this account
   lastLoginAt   DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   roles         AdminUserRole[]
-  auditLogs     AuditLog[]
   refreshTokens RefreshToken[]
+  gameAssignments    AdminGame[]
+  permissionOverrides AdminPermission[]
+  subscription  AdminSubscription?
+  invoices      AdminInvoice[]
+  commissions   AdminCommission[]
+  moderationActions ModerationAction[] @relation("ModerationAdmin")
 
   @@map("admin_users")
 }
@@ -60,6 +68,7 @@ model Permission {
   createdAt   DateTime @default(now())
 
   roles       RolePermission[]
+  admins      AdminPermission[]
 
   @@unique([resource, action])
   @@map("permissions")
@@ -106,6 +115,134 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+// Per-admin game assignment. An admin can only operate on assigned games.
+model AdminGame {
+  id        String   @id @default(uuid())
+  adminId   String
+  gameId    String
+  canView   Boolean  @default(true)
+  canEdit   Boolean  @default(false)
+  grantedBy String?
+  grantedAt DateTime @default(now())
+
+  admin     AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  game      Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([adminId, gameId])
+  @@index([gameId])
+  @@map("admin_games")
+}
+
+// Per-admin permission override (grant or revoke) on top of role permissions.
+model AdminPermission {
+  id           String   @id @default(uuid())
+  adminId      String
+  permissionId String
+  effect       String   @default("allow") // allow | deny
+  grantedBy    String?
+  createdAt    DateTime @default(now())
+
+  admin        AdminUser  @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([adminId, permissionId])
+  @@map("admin_permissions")
+}
+
+// Monthly access / commission plan offered to admins by the super admin.
+model AdminPlan {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  description     String?
+  currency        String   @default("USD")
+  monthlyFeeCents Int      @default(0)
+  commissionRate  Decimal  @default(0) // percent of the admin's game house earnings
+  maxGames        Int?     // null = unlimited
+  features        String?  // JSON feature list
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  subscriptions   AdminSubscription[]
+
+  @@map("admin_plans")
+}
+
+model AdminSubscription {
+  id                 String    @id @default(uuid())
+  adminId            String    @unique
+  planId             String
+  status             String    @default("active") // active, past_due, cancelled, expired
+  paymentStatus      String    @default("unpaid") // unpaid, paid, overdue
+  startedAt          DateTime  @default(now())
+  currentPeriodStart DateTime  @default(now())
+  currentPeriodEnd   DateTime?
+  accessExpiresAt    DateTime?
+  lastPaymentAt      DateTime?
+  nextPaymentDueAt   DateTime?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  admin              AdminUser      @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  plan               AdminPlan      @relation(fields: [planId], references: [id])
+  invoices           AdminInvoice[]
+
+  @@index([planId])
+  @@index([status, currentPeriodEnd])
+  @@map("admin_subscriptions")
+}
+
+model AdminInvoice {
+  id             String    @id @default(uuid())
+  adminId        String
+  subscriptionId String?
+  currency       String    @default("USD")
+  amountCents    Int
+  status         String    @default("unpaid") // unpaid, paid, void, refunded
+  periodStart    DateTime
+  periodEnd      DateTime
+  dueAt          DateTime?
+  paidAt         DateTime?
+  externalRef    String?
+  metadata       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  admin          AdminUser         @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  subscription   AdminSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([adminId, createdAt])
+  @@index([status, dueAt])
+  @@map("admin_invoices")
+}
+
+// Commission owed to an admin for a billing period, computed from settled rounds.
+model AdminCommission {
+  id             String   @id @default(uuid())
+  adminId        String
+  gameId         String?
+  periodStart    DateTime
+  periodEnd      DateTime
+  turnover       Decimal  @default(0)
+  houseEarnings  Decimal  @default(0)
+  commissionRate Decimal  @default(0)
+  commissionAmount Decimal @default(0)
+  currency       String   @default("coins")
+  status         String   @default("pending") // pending, approved, paid, void
+  paidAt         DateTime?
+  metadata       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  admin          AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  game           Game?     @relation(fields: [gameId], references: [id], onDelete: SetNull)
+
+  @@unique([adminId, gameId, periodStart, periodEnd])
+  @@index([status, periodEnd])
+  @@map("admin_commissions")
+}
+
 // ============================================================
 // PLAYERS
 // ============================================================
@@ -136,7 +273,6 @@ model Player {
   walletTransactions WalletTransaction[]
   bets            GameBet[]
   settlements     GameSettlement[]
-  auditLogs       AuditLog[]     @relation("AuditPlayer")
   refreshTokens   PlayerRefreshToken[]
   ownedLiveRooms  LiveRoom[]
   liveRoomMemberships RoomMember[]
@@ -149,7 +285,6 @@ model Player {
   reportsFiled    Report[]            @relation("Reporter")
   reportsTarget   Report[]            @relation("Target")
   moderationActions ModerationAction[] @relation("ModerationTarget")
-  moderationActionsIssued ModerationAction[] @relation("ModerationAdmin")
   notifications   Notification[]
   agencyMemberships AgencyMember[]
   familyMemberships FamilyMember[]
@@ -165,6 +300,14 @@ model Player {
   blockedUsers    BlockRelation[]     @relation("Blocker")
   blockedBy       BlockRelation[]     @relation("Blocked")
   playerSettings  PlayerSetting[]
+  gameSeeds       GameSeed[]
+  sentTransfers   WalletTransfer[] @relation("TransferSender")
+  receivedTransfers WalletTransfer[] @relation("TransferReceiver")
+  gameAccess      PlayerGameAccess[]
+  limits          PlayerLimit?
+  teenPattiSeats     TeenPattiSeat[]
+  teenPattiHandSeats TeenPattiSeatHand[]
+  teenPattiActions   TeenPattiAction[]
 
   @@map("players")
 }
@@ -286,6 +429,10 @@ model Game {
   assets          GameAsset[]
   localizations   GameLocalization[]
   betConfigs      GameBetConfig[]
+  seeds           GameSeed[]
+  adminAssignments AdminGame[]
+  playerAccess    PlayerGameAccess[]
+  commissions     AdminCommission[]
 
   @@map("games")
 }
@@ -395,6 +542,8 @@ model GameRound {
   bets          GameBet[]
   result        GameResult?
   settlements   GameSettlement[]
+  seed          GameSeed?     @relation("RoundSeed", fields: [seedId], references: [id])
+  seedId        String?       @unique
 
   @@unique([gameId, roundNumber])
   @@index([gameId, status])
@@ -423,14 +572,42 @@ model GameBet {
   settledAt      DateTime?
 
   round          GameRound      @relation(fields: [roundId], references: [id])
-  player         Player         @relation(fields: [playerId], references: [id])
-  option         GameOption     @relation(fields: [optionId], references: [id])
-  settlement     GameSettlement?
+player        Player         @relation(fields: [playerId], references: [id])
+  option        GameOption     @relation(fields: [optionId], references: [id])
+  settlement    GameSettlement?
 
   @@index([roundId])
   @@index([playerId, createdAt])
   @@index([status])
   @@map("game_bets")
+}
+
+// ============================================================
+// GAME SEEDS (PROVABLY FAIR)
+// ============================================================
+
+model GameSeed {
+  id             String    @id @default(uuid())
+  gameId         String
+  roundId        String?   @unique
+  playerId       String?   // Player-chosen client seed; null when the platform provides it
+  clientSeed     String
+  serverSeed     String    // Revealed ONLY after rounds using it settle
+  serverSeedHash String    // SHA-256 commitment published BEFORE the betting window
+  nonce          Int       @default(0) // Incremented per use of the same seed pair
+  seedLength     Int       @default(32) // Entropy source length for this seed
+  usedAt         DateTime? // First round that consumed this seed
+  revealedAt     DateTime? // When serverSeed was disclosed for audit
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  game          Game        @relation(fields: [gameId], references: [id])
+  round         GameRound?  @relation("RoundSeed")
+  player        Player?     @relation(fields: [playerId], references: [id])
+
+  @@index([gameId, playerId, usedAt])
+  @@index([roundId])
+  @@map("game_seeds")
 }
 
 // ============================================================
@@ -619,21 +796,117 @@ model PaymentOrder {
   packageId       String?
   packageType     String   // coin, diamond
   provider        String   // stripe, apple, google, manual, bank_transfer
+  providerOrderId String?
   externalOrderId String?
   currency        String   @default("USD")
   amountCents     Int
   tokenAmount     Int      // coins or diamonds to credit
-  status          String   @default("pending") // pending, completed, failed, refunded
+  status          String   @default("pending") // pending, completed, failed, refunded, expired
+  idempotencyKey  String?  @unique
+  failureReason   String?
   receiptData     String?
   metadata        String?
+  creditedAt      DateTime?
+  refundedAt      DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   player          Player      @relation(fields: [playerId], references: [id])
   coinPackage     CoinPackage? @relation(fields: [packageId], references: [id])
+  webhookEvents   PaymentWebhookEvent[]
 
+  @@unique([provider, externalOrderId])
   @@index([playerId, createdAt])
+  @@index([status, createdAt])
   @@map("payment_orders")
+}
+
+// Idempotency + audit record for every inbound payment-provider webhook.
+// (provider, eventId) is unique so a replayed webhook is processed exactly once.
+model PaymentWebhookEvent {
+  id             String   @id @default(uuid())
+  provider       String
+  eventId        String
+  eventType      String
+  paymentOrderId String?
+  signatureValid Boolean  @default(false)
+  status         String   @default("received") // received, processed, ignored, failed
+  payload        String
+  error          String?
+  processedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  paymentOrder   PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, eventId])
+  @@index([status, createdAt])
+  @@index([paymentOrderId])
+  @@map("payment_webhook_events")
+}
+
+// Atomic, idempotent player-to-player wallet transfer.
+model WalletTransfer {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  currency   String   @default("coins")
+  amount     Decimal
+  fee        Decimal  @default(0)
+  status     String   @default("completed") // completed, reversed, failed
+  txRef      String   @unique // idempotency key
+  note       String?
+  metadata   String?
+  createdAt  DateTime @default(now())
+  reversedAt DateTime?
+
+  sender     Player @relation("TransferSender", fields: [senderId], references: [id])
+  receiver   Player @relation("TransferReceiver", fields: [receiverId], references: [id])
+
+  @@index([senderId, createdAt])
+  @@index([receiverId, createdAt])
+  @@map("wallet_transfers")
+}
+
+// Per-player game availability/eligibility (overrides global game status).
+model PlayerGameAccess {
+  id        String   @id @default(uuid())
+  playerId  String
+  gameId    String
+  isEnabled Boolean  @default(true)
+  reason    String?
+  grantedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  player    Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  game      Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, gameId])
+  @@index([gameId, isEnabled])
+  @@map("player_game_access")
+}
+
+// Responsible-gaming controls (explicit limits / self-exclusion).
+model PlayerLimit {
+  id                    String    @id @default(uuid())
+  playerId              String    @unique
+  currency              String    @default("coins")
+  dailyDepositLimitCents Int?
+  dailyLossLimit        Decimal?
+  dailyBetLimit         Decimal?
+  weeklyLossLimit       Decimal?
+  maxSessionMinutes     Int?
+  selfExcludedUntil     DateTime?
+  coolOffUntil          DateTime?
+  selfExclusionReason   String?
+  updatedBy             String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  player                Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("player_limits")
 }
 
 // ============================================================
@@ -1042,8 +1315,8 @@ model ModerationAction {
   expiresAt   DateTime?
   createdAt   DateTime @default(now())
 
-  admin       Player?  @relation(fields: [adminId], references: [id], name: "ModerationAdmin")
-  player      Player   @relation(fields: [targetId], references: [id], name: "ModerationTarget")
+  admin       AdminUser? @relation(fields: [adminId], references: [id], name: "ModerationAdmin")
+  player      Player     @relation(fields: [targetId], references: [id], name: "ModerationTarget")
 
   @@index([targetType, targetId])
   @@map("moderation_actions")
@@ -1075,7 +1348,7 @@ model Notification {
 
 model AuditLog {
   id         String   @id @default(uuid())
-  actorId    String?  // Player or admin ID
+  actorId    String?  // Free-form actor reference (player or admin ID); validated by services
   actorType  String   @default("system") // player, admin, system
   action     String   // BET_PLACED, ROUND_SETTLED, ADMIN_OVERRIDE, etc.
   entityType String   // bet, round, player, config, wallet
@@ -1087,9 +1360,6 @@ model AuditLog {
   requestId  String?
   metadata   String?
   createdAt  DateTime @default(now())
-
-  admin      AdminUser? @relation(fields: [actorId], references: [id])
-  player     Player?    @relation("AuditPlayer", fields: [actorId], references: [id])
 
   @@index([actorId, createdAt])
   @@index([entityType, entityId])

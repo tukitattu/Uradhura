@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
 import { cn } from "@/lib/utils";
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -59,19 +60,24 @@ SidebarMenuItem.displayName = "SidebarMenuItem";
 
 const SidebarMenuButton = React.forwardRef<
   HTMLButtonElement,
-  React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean; collapsed?: boolean }
->(({ className, active, collapsed, ...props }, ref) => (
-  <button
-    ref={ref}
-    className={cn(
-      "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
-      active && "bg-primary/10 text-primary",
-      collapsed && "justify-center px-2",
-      className
-    )}
-    {...props}
-  />
-));
+  React.ButtonHTMLAttributes<HTMLButtonElement> &
+    React.RefAttributes<HTMLButtonElement> & { active?: boolean; collapsed?: boolean; asChild?: boolean }
+>(({ className, active, collapsed, asChild = false, ...props }, ref) => {
+  const Comp: React.ElementType = asChild ? Slot : "button";
+  return (
+    <Comp
+      ref={ref}
+      className={cn(
+        "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
+        active && "bg-primary/10 text-primary",
+        collapsed && "justify-center px-2",
+        className
+      )}
+      type={asChild ? undefined : "button"}
+      {...props}
+    />
+  );
+});
 SidebarMenuButton.displayName = "SidebarMenuButton";
 
 const SidebarMenuLabel = React.forwardRef<

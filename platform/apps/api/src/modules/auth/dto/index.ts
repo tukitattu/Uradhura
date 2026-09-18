@@ -29,6 +29,14 @@ export class RegisterDto {
   @IsString()
   @IsOptional()
   lastName?: string;
+
+  @ApiPropertyOptional({
+    example: 'game_operator',
+    description: 'Role to assign. Defaults to viewer. super_admin cannot be created here.',
+  })
+  @IsString()
+  @IsOptional()
+  roleName?: string;
 }
 
 export class LoginDto {

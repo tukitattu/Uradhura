@@ -8,12 +8,17 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { PlayerAuthService } from './player-auth.service';
+import { PlayerAuthController } from './player-auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { PlayerJwtStrategy } from './strategies/player-jwt.strategy';
 import { PlayersModule } from '../players/players.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
     PlayersModule,
+    AuditModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -24,8 +29,8 @@ import { PlayersModule } from '../players/players.module';
       inject: [ConfigService],
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  controllers: [AuthController, PlayerAuthController],
+  providers: [AuthService, JwtStrategy, PlayerAuthService, PlayerJwtStrategy],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

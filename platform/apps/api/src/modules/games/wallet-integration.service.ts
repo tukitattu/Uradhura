@@ -1,7 +1,15 @@
 // ============================================================
-// WALLET INTEGRATION SERVICE — Atomic Wallet Operations
-// All balance mutations use Prisma interactive transactions
-// to guarantee ACID properties on the ledger.
+// WALLET INTEGRATION SERVICE — ATOMIC IMMUTABLE LEDGER
+//
+// Every balance mutation:
+//   • runs inside a single interactive transaction
+//   • locks the wallet row with `SELECT ... FOR UPDATE`
+//   • writes an immutable WalletTransaction row (idempotencyKey UNIQUE)
+//   • never lets a balance go below zero
+//
+// Optional `tx` parameter lets callers run a wallet movement and a
+// domain write (e.g. GameBet) inside the SAME transaction, so a failed
+// domain write rolls back the balance change too (no ghost debits).
 // ============================================================
 
 import {
@@ -13,7 +21,17 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Decimal } from '@prisma/client/runtime/library';
-import { WalletAccount, WalletTransaction, Prisma } from '@prisma/client';
+import { WalletAccount, WalletTransaction, WalletTransfer, Prisma } from '@prisma/client';
+
+type TxClient = Prisma.TransactionClient;
+
+export interface WalletMovementOptions {
+  tx?: TxClient;
+  type?: string;
+  currency?: 'coins' | 'diamonds';
+  metadata?: Prisma.InputJsonValue;
+  createdBy?: string;
+}
 
 @Injectable()
 export class WalletIntegrationService {
@@ -22,79 +40,229 @@ export class WalletIntegrationService {
   constructor(private prisma: PrismaService) {}
 
   // ----------------------------------------------------------
-  // Core mutations
+  // Wallet row helpers
   // ----------------------------------------------------------
 
   /**
-   * Atomically debits coins from a player's wallet.
-   *
-   * Steps inside a single transaction:
-   *   1. Lock and read the wallet account (SELECT ... FOR UPDATE equivalent)
-   *   2. Verify sufficient balance
-   *   3. Create an immutable WalletTransaction record
-   *   4. Update WalletAccount balances
-   *
-   * @throws NotFoundException if player has no wallet
-   * @throws BadRequestException if insufficient balance
-   * @throws ConflictException if idempotencyKey already used
+   * Runs `fn` inside a transaction. If the caller already opened one
+   * (opts.tx), the callback reuses it so domain writes and balance
+   * movements commit atomically. Otherwise a fresh interactive
+   * transaction is created.
    */
+  private async runInTx<T>(
+    db: PrismaService | TxClient,
+    fn: (tx: TxClient) => Promise<T>,
+  ): Promise<T> {
+    const anyDb = db as unknown as { $transaction?: (cb: (tx: TxClient) => Promise<T>) => Promise<T> };
+    if (typeof anyDb.$transaction === 'function') {
+      return anyDb.$transaction(fn);
+    }
+    return fn(db as TxClient);
+  }
+
+  private async walletRow(tx: TxClient, playerId: string): Promise<WalletAccount> {
+    const rows = await tx.$queryRaw<WalletAccount[]>`
+      SELECT * FROM wallet_accounts WHERE "playerId" = ${playerId} FOR UPDATE
+    `;
+    if (rows && rows.length > 0) {
+      return rows[0];
+    }
+    // Auto-create the wallet on first use (e.g. a fresh player's very first
+    // credit/purchase). Prisma generates the UUID client-side; upsert is
+    // safe under concurrency thanks to the unique playerId.
+    await tx.walletAccount.upsert({
+      where: { playerId },
+      update: {},
+      create: { playerId },
+    });
+    const created = await tx.$queryRaw<WalletAccount[]>`
+      SELECT * FROM wallet_accounts WHERE "playerId" = ${playerId} FOR UPDATE
+    `;
+    if (!created || created.length === 0) {
+      throw new NotFoundException('Player wallet not found');
+    }
+    return created[0];
+  }
+
+  private balanceOf(wallet: WalletAccount, currency: 'coins' | 'diamonds'): Decimal {
+    return new Decimal(currency === 'coins' ? wallet.coinBalance : wallet.diamondBalance);
+  }
+
+  private async writeMovement(
+    tx: TxClient,
+    playerId: string,
+    wallet: WalletAccount,
+    currency: 'coins' | 'diamonds',
+    type: string,
+    amount: Decimal,
+    newBalance: Decimal,
+    referenceType: string,
+    referenceId: string,
+    description: string,
+    idempotencyKey: string,
+    createdBy?: string,
+    metadata?: Prisma.InputJsonValue,
+  ): Promise<WalletTransaction> {
+    try {
+      return await tx.walletTransaction.create({
+        data: {
+          walletAccountId: wallet.id,
+          playerId,
+          type,
+          currency,
+          amount,
+          balanceBefore: this.balanceOf(wallet, currency),
+          balanceAfter: newBalance,
+          referenceType,
+          referenceId,
+          description,
+          idempotencyKey,
+          createdBy,
+          metadata: metadata ? JSON.stringify(metadata) : undefined,
+        },
+      });
+    } catch (e: unknown) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException('Duplicate idempotency key');
+      }
+      throw e;
+    }
+  }
+
+  // ----------------------------------------------------------
+  // Core mutations
+  // ----------------------------------------------------------
+
   async debit(
     playerId: string,
     amount: Decimal | number,
     referenceType: string,
     referenceId: string,
     description: string,
-    idempotencyKey?: string,
+    idempotencyKey: string,
+    opts: { tx?: TxClient; type?: string; currency?: 'coins' | 'diamonds'; createdBy?: string; metadata?: Prisma.InputJsonValue } = {},
   ): Promise<{ wallet: WalletAccount; transaction: WalletTransaction }> {
     const debitAmount = new Decimal(amount);
+    const currency = opts.currency ?? 'coins';
+    const type = opts.type ?? (currency === 'coins' ? 'bet_debit' : 'bet_debit');
 
+    if (!idempotencyKey || idempotencyKey.trim().length === 0) {
+      throw new BadRequestException('idempotencyKey is required for wallet mutations');
+    }
     if (debitAmount.lte(0)) {
       throw new BadRequestException('Debit amount must be positive');
     }
 
-    const key = idempotencyKey ?? `debit_${playerId}_${referenceId}_${Date.now()}`;
+    const db = opts.tx ?? this.prisma;
 
-    return this.prisma.$transaction(async (tx) => {
-      // Lock wallet row
-      const wallet = await tx.$queryRaw<
-        WalletAccount[]
-      >`SELECT * FROM wallet_accounts WHERE player_id = ${playerId} FOR UPDATE`;
-
-      if (!wallet || wallet.length === 0) {
-        throw new NotFoundException('Player wallet not found');
+    return this.runInTx(db, async (tx) => {
+      const existing = await tx.walletTransaction.findUnique({
+        where: { idempotencyKey },
+      });
+      if (existing) {
+        return { wallet: await this.walletRow(tx, playerId), transaction: existing };
       }
 
-      const walletRow = wallet[0];
+      const walletRow = await this.walletRow(tx, playerId);
+      const currentBalance = this.balanceOf(walletRow, currency);
 
-      if (new Decimal(walletRow.coinBalance).lt(debitAmount)) {
+      if (currentBalance.lt(debitAmount)) {
         throw new BadRequestException(
-          `Insufficient balance. Available: ${walletRow.coinBalance}, requested: ${debitAmount}`,
+          `Insufficient balance. Available: ${currentBalance}, requested: ${debitAmount}`,
         );
       }
 
-      const newBalance = new Decimal(walletRow.coinBalance).sub(debitAmount);
+      const newBalance = currentBalance.sub(debitAmount);
 
-      const transaction = await tx.walletTransaction.create({
-        data: {
-          walletAccountId: walletRow.id,
-          playerId,
-          type: 'bet_debit',
-          currency: 'coins',
-          amount: debitAmount,
-          balanceBefore: new Decimal(walletRow.coinBalance),
-          balanceAfter: newBalance,
-          referenceType,
-          referenceId,
-          description,
-          idempotencyKey: key,
-        },
-      });
+      const transaction = await this.writeMovement(
+        tx,
+        playerId,
+        walletRow,
+        currency,
+        type,
+        debitAmount,
+        newBalance,
+        referenceType,
+        referenceId,
+        description,
+        idempotencyKey,
+        opts.createdBy,
+        opts.metadata,
+      );
+
+      const balanceField = currency === 'coins' ? 'coinBalance' : 'diamondBalance';
+      const spentField = currency === 'coins' ? 'totalCoinsSpent' : 'totalDiamondsSpent';
 
       const updatedWallet = await tx.walletAccount.update({
         where: { id: walletRow.id },
         data: {
-          coinBalance: newBalance,
-          totalCoinsSpent: new Decimal(walletRow.totalCoinsSpent).add(debitAmount),
+          [balanceField]: newBalance,
+          [spentField]: new Decimal(walletRow[spentField]).add(debitAmount),
+        },
+      });
+
+      return { wallet: updatedWallet, transaction };
+    });
+  }
+
+  async credit(
+    playerId: string,
+    amount: Decimal | number,
+    referenceType: string,
+    referenceId: string,
+    description: string,
+    idempotencyKey: string,
+    opts: { tx?: TxClient; type?: string; currency?: 'coins' | 'diamonds'; createdBy?: string; metadata?: Prisma.InputJsonValue } = {},
+  ): Promise<{ wallet: WalletAccount; transaction: WalletTransaction }> {
+    const creditAmount = new Decimal(amount);
+    const currency = opts.currency ?? 'coins';
+    const type = opts.type ?? (currency === 'coins' ? 'bet_credit' : 'bet_credit');
+
+    if (!idempotencyKey || idempotencyKey.trim().length === 0) {
+      throw new BadRequestException('idempotencyKey is required for wallet mutations');
+    }
+    if (creditAmount.lte(0)) {
+      throw new BadRequestException('Credit amount must be positive');
+    }
+
+    const db = opts.tx ?? this.prisma;
+
+    return this.runInTx(db, async (tx) => {
+      const existing = await tx.walletTransaction.findUnique({
+        where: { idempotencyKey },
+      });
+      if (existing) {
+        return { wallet: await this.walletRow(tx, playerId), transaction: existing };
+      }
+
+      const walletRow = await this.walletRow(tx, playerId);
+      const currentBalance = this.balanceOf(walletRow, currency);
+      const newBalance = currentBalance.add(creditAmount);
+
+      const transaction = await this.writeMovement(
+        tx,
+        playerId,
+        walletRow,
+        currency,
+        type,
+        creditAmount,
+        newBalance,
+        referenceType,
+        referenceId,
+        description,
+        idempotencyKey,
+        opts.createdBy,
+        opts.metadata,
+      );
+
+      const balanceField = currency === 'coins' ? 'coinBalance' : 'diamondBalance';
+      const earnedField = currency === 'coins' ? 'totalCoinsEarned' : 'totalDiamondsEarned';
+
+      const updatedWallet = await tx.walletAccount.update({
+        where: { id: walletRow.id },
+        data: {
+          [balanceField]: newBalance,
+          [earnedField]: new Decimal(walletRow[earnedField]).add(creditAmount),
         },
       });
 
@@ -103,69 +271,178 @@ export class WalletIntegrationService {
   }
 
   /**
-   * Atomically credits coins to a player's wallet.
-   *
-   * Steps inside a single transaction:
-   *   1. Lock and read the wallet account
-   *   2. Create an immutable WalletTransaction record
-   *   3. Update WalletAccount balances
-   *
-   * @throws NotFoundException if player has no wallet
-   * @throws ConflictException if idempotencyKey already used
+   * Atomic, idempotent player-to-player transfer.
+   * Sender is debited amount+fee, receiver is credited amount, all in ONE
+   * transaction keyed by the unique `txRef`. A replay with the same txRef
+   * returns the original transfer without moving money twice.
    */
-  async credit(
-    playerId: string,
+  async transfer(
+    senderId: string,
+    receiverId: string,
     amount: Decimal | number,
-    referenceType: string,
-    referenceId: string,
-    description: string,
-    idempotencyKey?: string,
-  ): Promise<{ wallet: WalletAccount; transaction: WalletTransaction }> {
-    const creditAmount = new Decimal(amount);
+    currency: 'coins' | 'diamonds',
+    fee: Decimal | number,
+    txRef: string,
+    note?: string,
+    opts: { tx?: TxClient; createdBy?: string } = {},
+  ): Promise<{ transfer: WalletTransfer; senderWallet: WalletAccount; receiverWallet: WalletAccount }> {
+    const transferAmount = new Decimal(amount);
+    const feeAmount = new Decimal(fee);
 
-    if (creditAmount.lte(0)) {
-      throw new BadRequestException('Credit amount must be positive');
+    if (!txRef || txRef.trim().length === 0) {
+      throw new BadRequestException('txRef is required for transfers');
+    }
+    if (transferAmount.lte(0)) {
+      throw new BadRequestException('Transfer amount must be positive');
+    }
+    if (feeAmount.lt(0)) {
+      throw new BadRequestException('Transfer fee cannot be negative');
+    }
+    if (senderId === receiverId) {
+      throw new BadRequestException('Cannot transfer to yourself');
     }
 
-    const key = idempotencyKey ?? `credit_${playerId}_${referenceId}_${Date.now()}`;
+    const db = opts.tx ?? this.prisma;
 
-    return this.prisma.$transaction(async (tx) => {
-      const wallet = await tx.$queryRaw<
-        WalletAccount[]
-      >`SELECT * FROM wallet_accounts WHERE player_id = ${playerId} FOR UPDATE`;
-
-      if (!wallet || wallet.length === 0) {
-        throw new NotFoundException('Player wallet not found');
+    return this.runInTx(db, async (tx) => {
+      const existing = await tx.walletTransfer.findUnique({ where: { txRef } });
+      if (existing) {
+        const senderWallet = await this.walletRow(tx, senderId);
+        const receiverWallet = await this.walletRow(tx, receiverId);
+        return { transfer: existing, senderWallet, receiverWallet };
       }
 
-      const walletRow = wallet[0];
-      const newBalance = new Decimal(walletRow.coinBalance).add(creditAmount);
+      // Lock both wallets in a canonical order to avoid deadlocks.
+      const [aId, bId] = [senderId, receiverId].sort();
+      const rows = await tx.$queryRaw<WalletAccount[]>`
+        SELECT * FROM wallet_accounts WHERE "playerId" IN (${aId}, ${bId}) ORDER BY "playerId" FOR UPDATE
+      `;
+      if (!rows || rows.length !== 2) {
+        throw new NotFoundException('One or both wallets not found');
+      }
+      const senderWallet = rows.find((r) => r.playerId === senderId)!;
+      const receiverWallet = rows.find((r) => r.playerId === receiverId)!;
 
-      const transaction = await tx.walletTransaction.create({
+      const senderBalance = this.balanceOf(senderWallet, currency);
+      const totalDebit = transferAmount.add(feeAmount);
+
+      if (senderBalance.lt(totalDebit)) {
+        throw new BadRequestException(
+          `Insufficient balance for transfer. Available: ${senderBalance}, needed: ${totalDebit}`,
+        );
+      }
+
+      const senderNewBalance = senderBalance.sub(totalDebit);
+      const receiverNewBalance = this.balanceOf(receiverWallet, currency).add(transferAmount);
+      const balanceField = currency === 'coins' ? 'coinBalance' : 'diamondBalance';
+      const sentField = currency === 'coins' ? 'totalCoinsSpent' : 'totalDiamondsSpent';
+      const receivedField = currency === 'coins' ? 'totalCoinsEarned' : 'totalDiamondsEarned';
+
+      await this.writeMovement(
+        tx,
+        senderId,
+        senderWallet,
+        currency,
+        currency === 'coins' ? 'transfer_send' : 'transfer_send',
+        totalDebit,
+        senderNewBalance,
+        'wallet_transfer',
+        txRef,
+        note ? `Transfer to ${receiverId}: ${note}` : `Transfer to ${receiverId}`,
+        `transfer-send-${txRef}`,
+        opts.createdBy,
+      );
+
+      if (feeAmount.gt(0)) {
+        await tx.walletTransaction.create({
+          data: {
+            walletAccountId: senderWallet.id,
+            playerId: senderId,
+            type: 'transfer_fee',
+            currency,
+            amount: feeAmount,
+            balanceBefore: new Decimal(senderBalance),
+            balanceAfter: senderNewBalance.add(transferAmount),
+            referenceType: 'wallet_transfer',
+            referenceId: txRef,
+            description: `Transfer fee`,
+            idempotencyKey: `transfer-fee-${txRef}`,
+            createdBy: opts.createdBy,
+          },
+        });
+      }
+
+      const senderUpdated = await tx.walletAccount.update({
+        where: { id: senderWallet.id },
         data: {
-          walletAccountId: walletRow.id,
-          playerId,
-          type: 'bet_credit',
-          currency: 'coins',
-          amount: creditAmount,
-          balanceBefore: new Decimal(walletRow.coinBalance),
-          balanceAfter: newBalance,
-          referenceType,
-          referenceId,
-          description,
-          idempotencyKey: key,
+          [balanceField]: senderNewBalance,
+          [sentField]: new Decimal(senderWallet[sentField]).add(totalDebit),
         },
       });
 
-      const updatedWallet = await tx.walletAccount.update({
-        where: { id: walletRow.id },
+      // Receiver-side immutable ledger row (balance changes must be
+      // traceable on BOTH ends of a transfer).
+      await this.writeMovement(
+        tx,
+        receiverId,
+        receiverWallet,
+        currency,
+        currency === 'coins' ? 'transfer_receive' : 'transfer_receive',
+        transferAmount,
+        receiverNewBalance,
+        'wallet_transfer',
+        txRef,
+        note ? `Received transfer from ${senderId}: ${note}` : `Received transfer from ${senderId}`,
+        `transfer-receive-${txRef}`,
+        opts.createdBy,
+      );
+
+      const receiverUpdated = await tx.walletAccount.update({
+        where: { id: receiverWallet.id },
         data: {
-          coinBalance: newBalance,
-          totalCoinsEarned: new Decimal(walletRow.totalCoinsEarned).add(creditAmount),
+          [balanceField]: receiverNewBalance,
+          [receivedField]: new Decimal(receiverWallet[receivedField]).add(transferAmount),
         },
       });
 
-      return { wallet: updatedWallet, transaction };
+      const transfer = await tx.walletTransfer.create({
+        data: {
+          senderId,
+          receiverId,
+          currency,
+          amount: transferAmount,
+          fee: feeAmount,
+          txRef,
+          note,
+          metadata: undefined,
+        },
+      });
+
+      return {
+        transfer,
+        senderWallet: senderUpdated as WalletAccount,
+        receiverWallet: receiverUpdated as WalletAccount,
+      };
+    });
+  }
+
+  /**
+   * Credit a player's wallet after a verified payment. Idempotent by order id.
+   */
+  async creditPayment(
+    playerId: string,
+    amount: Decimal | number,
+    currency: 'coins' | 'diamonds',
+    paymentOrderId: string,
+    description: string,
+    createdBy?: string,
+  ): Promise<{ wallet: WalletAccount; transaction: WalletTransaction }> {
+    const key = `payment-${currency}-${paymentOrderId}`;
+    return this.credit(playerId, amount, 'payment', paymentOrderId, description, key, {
+      type: currency === 'coins' ? 'coin_purchase' : 'diamond_purchase',
+      currency,
+      createdBy,
+      metadata: { paymentOrderId },
     });
   }
 
@@ -173,10 +450,6 @@ export class WalletIntegrationService {
   // Balance queries
   // ----------------------------------------------------------
 
-  /**
-   * Returns the coin and diamond balances for a player.
-   * Creates a wallet on first access if none exists.
-   */
   async getBalance(
     playerId: string,
   ): Promise<{ coinBalance: Decimal; diamondBalance: Decimal }> {
@@ -198,9 +471,6 @@ export class WalletIntegrationService {
     };
   }
 
-  /**
-   * Returns the full wallet record for a player.
-   */
   async getWallet(playerId: string): Promise<WalletAccount> {
     let wallet = await this.prisma.walletAccount.findUnique({
       where: { playerId },
@@ -215,24 +485,11 @@ export class WalletIntegrationService {
     return wallet;
   }
 
-  // ----------------------------------------------------------
-  // Transaction history
-  // ----------------------------------------------------------
-
-  /**
-   * Returns a paginated list of wallet transactions for a player,
-   * ordered by most recent first.
-   */
   async getTransactionHistory(
     playerId: string,
     page: number = 1,
     limit: number = 20,
-  ): Promise<{
-    transactions: WalletTransaction[];
-    total: number;
-    page: number;
-    totalPages: number;
-  }> {
+  ): Promise<{ transactions: WalletTransaction[]; total: number; page: number; totalPages: number }> {
     const safePage = Math.max(1, page);
     const safeLimit = Math.min(Math.max(1, limit), 100);
     const skip = (safePage - 1) * safeLimit;
@@ -244,85 +501,73 @@ export class WalletIntegrationService {
         skip,
         take: safeLimit,
       }),
-      this.prisma.walletTransaction.count({
-        where: { playerId },
-      }),
+      this.prisma.walletTransaction.count({ where: { playerId } }),
     ]);
 
-    return {
-      transactions,
-      total,
-      page: safePage,
-      totalPages: Math.ceil(total / safeLimit),
-    };
+    return { transactions, total, page: safePage, totalPages: Math.ceil(total / safeLimit) };
   }
 
   // ----------------------------------------------------------
   // Admin operations
   // ----------------------------------------------------------
 
-  /**
-   * Admin adjustment to a player's balance.
-   * Creates an auditable transaction with the admin's ID.
-   *
-   * @param playerId - The player to adjust
-   * @param amount   - Positive to credit, negative to debit
-   * @param reason   - Human-readable reason for the audit trail
-   * @param adminId  - The admin performing the adjustment
-   */
   async adjustBalance(
     playerId: string,
     amount: Decimal | number,
     reason: string,
     adminId: string,
+    opts: { tx?: TxClient; currency?: 'coins' | 'diamonds'; idempotencyKey?: string } = {},
   ): Promise<{ wallet: WalletAccount; transaction: WalletTransaction }> {
     const adjustmentAmount = new Decimal(amount);
+    const currency = opts.currency ?? 'coins';
 
     if (adjustmentAmount.eq(0)) {
       throw new BadRequestException('Adjustment amount cannot be zero');
     }
-
     if (!reason || reason.trim().length === 0) {
       throw new BadRequestException('Reason is required for admin adjustments');
     }
-
     if (!adminId || adminId.trim().length === 0) {
       throw new BadRequestException('Admin ID is required');
     }
 
-    const isCredit = adjustmentAmount.gt(0);
-    const key = `admin_adj_${playerId}_${adminId}_${Date.now()}`;
+    const key =
+      opts.idempotencyKey ??
+      `admin_adj_${playerId}_${adminId}_${currency}_${new Date().toISOString()}`;
 
-    return this.prisma.$transaction(async (tx) => {
-      const wallet = await tx.$queryRaw<
-        WalletAccount[]
-      >`SELECT * FROM wallet_accounts WHERE player_id = ${playerId} FOR UPDATE`;
+    const db = opts.tx ?? this.prisma;
 
-      if (!wallet || wallet.length === 0) {
-        throw new NotFoundException('Player wallet not found');
+    return this.runInTx(db, async (tx) => {
+      const existing = await tx.walletTransaction.findUnique({
+        where: { idempotencyKey: key },
+      });
+      if (existing) {
+        return { wallet: await this.walletRow(tx, playerId), transaction: existing };
       }
 
-      const walletRow = wallet[0];
+      const walletRow = await this.walletRow(tx, playerId);
+      const isCredit = adjustmentAmount.gt(0);
+      const currentBalance = this.balanceOf(walletRow, currency);
 
-      if (!isCredit) {
-        const absAmount = adjustmentAmount.abs();
-        if (new Decimal(walletRow.coinBalance).lt(absAmount)) {
-          throw new BadRequestException(
-            `Insufficient balance for debit adjustment. Available: ${walletRow.coinBalance}, requested: ${absAmount}`,
-          );
-        }
+      if (!isCredit && currentBalance.lt(adjustmentAmount.abs())) {
+        throw new BadRequestException(
+          `Insufficient balance for debit adjustment. Available: ${currentBalance}, requested: ${adjustmentAmount.abs()}`,
+        );
       }
 
-      const newBalance = new Decimal(walletRow.coinBalance).add(adjustmentAmount);
+      const newBalance = currentBalance.add(adjustmentAmount);
+      const balanceField = currency === 'coins' ? 'coinBalance' : 'diamondBalance';
+      const earnedField = currency === 'coins' ? 'totalCoinsEarned' : 'totalDiamondsEarned';
+      const spentField = currency === 'coins' ? 'totalCoinsSpent' : 'totalDiamondsSpent';
 
       const transaction = await tx.walletTransaction.create({
         data: {
           walletAccountId: walletRow.id,
           playerId,
           type: 'admin_adjustment',
-          currency: 'coins',
+          currency,
           amount: adjustmentAmount.abs(),
-          balanceBefore: new Decimal(walletRow.coinBalance),
+          balanceBefore: currentBalance,
           balanceAfter: newBalance,
           referenceType: 'admin',
           referenceId: adminId,
@@ -339,23 +584,15 @@ export class WalletIntegrationService {
       const updatedWallet = await tx.walletAccount.update({
         where: { id: walletRow.id },
         data: {
-          coinBalance: newBalance,
+          [balanceField]: newBalance,
           ...(isCredit
-            ? {
-                totalCoinsEarned: new Decimal(walletRow.totalCoinsEarned).add(
-                  adjustmentAmount,
-                ),
-              }
-            : {
-                totalCoinsSpent: new Decimal(walletRow.totalCoinsSpent).add(
-                  adjustmentAmount.abs(),
-                ),
-              }),
+            ? { [earnedField]: new Decimal(walletRow[earnedField]).add(adjustmentAmount) }
+            : { [spentField]: new Decimal(walletRow[spentField]).add(adjustmentAmount.abs()) }),
         },
       });
 
       this.logger.log(
-        `Admin ${adminId} adjusted player ${playerId} balance by ${adjustmentAmount}: ${reason}`,
+        `Admin ${adminId} adjusted player ${playerId} balance by ${adjustmentAmount} (${currency}): ${reason}`,
       );
 
       return { wallet: updatedWallet, transaction };

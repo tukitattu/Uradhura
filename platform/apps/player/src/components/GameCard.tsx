@@ -23,7 +23,7 @@ export default function GameCard({ game, featured }: Props) {
           <View style={[styles.statusDot, game.status === 'active' && styles.statusDotActive]} />
           <Text style={styles.statusText}>{game.status}</Text>
         </View>
-        {game.playerCount > 0 && (
+        {(game.playerCount ?? 0) > 0 && (
           <Text style={styles.playerCount}>{game.playerCount} playing</Text>
         )}
       </View>
