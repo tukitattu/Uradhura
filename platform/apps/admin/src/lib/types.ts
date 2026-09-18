@@ -192,3 +192,48 @@ export interface AnalyticsData {
   gamePopularity: ChartDataPoint[];
   betVolume: ChartDataPoint[];
 }
+
+export type AssetStatus = "draft" | "published" | "disabled" | "archived";
+export type AssetVisibility = "public" | "vip" | "internal" | "beta";
+
+export interface Asset {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  category: string;
+  type: string | null;
+  format: string | null;
+  extension: string | null;
+  url: string | null;
+  thumbnailUrl: string | null;
+  version: number;
+  status: AssetStatus;
+  isEnabled: boolean;
+  isBundled: boolean;
+  sortOrder: number;
+  target: string | null;
+  scope: string | null;
+  localization: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  visibility: AssetVisibility;
+  fileName: string | null;
+  mimeType: string | null;
+  fileSize: number | null;
+  width: number | null;
+  height: number | null;
+  checksum: string | null;
+  publishedAt: string | null;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CatalogOptions {
+  categories: string[];
+  targets: string[];
+  statuses: AssetStatus[];
+  visibilities: AssetVisibility[];
+  formats: string[];
+}

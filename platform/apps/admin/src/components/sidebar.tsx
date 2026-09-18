@@ -26,10 +26,12 @@ import {
   Settings,
   BarChart3,
   LogOut,
+  Image as ImageIcon,
 } from "lucide-react";
 
 const navigation = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/assets", label: "Assets", icon: ImageIcon },
   { href: "/games", label: "Games", icon: Gamepad2 },
   { href: "/players", label: "Players", icon: Users },
   { href: "/wallet", label: "Wallet", icon: Wallet },

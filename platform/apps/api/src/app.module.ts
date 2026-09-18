@@ -23,6 +23,9 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
 import { AdminManagementModule } from './modules/admin-management/admin-management.module';
+import { TeenPattiModule } from './modules/teen-patti/teen-patti.module';
+import { WithdrawalsModule } from './modules/withdrawals/withdrawal.module';
+import { AssetsModule } from './modules/assets/assets.module';
 
 @Module({
   imports: [
@@ -56,6 +59,9 @@ import { AdminManagementModule } from './modules/admin-management/admin-manageme
     DashboardModule,
     GatewayModule,
     AdminManagementModule,
+    TeenPattiModule,
+    WithdrawalsModule,
+    AssetsModule,
   ],
 })
 export class AppModule {}

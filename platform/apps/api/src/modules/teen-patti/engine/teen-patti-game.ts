@@ -1,11 +1,21 @@
 import { TPCard, cardLabel } from './cards';
-import { evaluateHand, compareHands, TPHandRank } from './evaluator';
+import { evaluateHand, compareHands, TPHandRank, EvaluateOptions } from './evaluator';
+import { FairRandom } from '../../games/fair-random';
+
+export type TPTieBreak = 'high_card' | 'seed';
+export type TPCardVisibility = 'auto_on_cap' | 'manual';
 
 export interface TPGameConfig {
   bootAmount: number;
   chaalCap: number;
   maxSeats: number;
   maxActionsPerHand: number;
+  rakePercent?: number;
+  rankingOrder?: string[];
+  tieBreak?: TPTieBreak;
+  tieBreakKey?: string;
+  tieBreakNonce?: number;
+  cardVisibility?: TPCardVisibility;
 }
 
 export interface TPSeat {
@@ -59,6 +69,7 @@ export interface TPSettle {
   winners: number[];
   payoffs: Record<number, number>;
   reveal: HandReveal[];
+  rakeCoins: number;
 }
 
 export class TeenPattiGame {
@@ -72,6 +83,7 @@ export class TeenPattiGame {
   turnSeatNo: number | null = null;
   actionCount = 0;
   settle: TPSettle | null = null;
+  rakeCoins = 0;
 
   constructor(
     config: TPGameConfig,
@@ -115,6 +127,33 @@ export class TeenPattiGame {
 
   inHandSeats(): TPSeat[] {
     return this.seats.filter((s) => !s.folded);
+  }
+
+  private evalOpts(): EvaluateOptions {
+    return { rankingOrder: this.config.rankingOrder };
+  }
+
+  // Deterministic best-hand selection with admin-configured tie-break.
+  private bestSeats(candidates: TPSeat[]): TPSeat[] {
+    if (candidates.length === 0) return [];
+    if (candidates.length === 1) return candidates;
+    let best = evaluateHand(candidates[0].cards, this.evalOpts());
+    for (let i = 1; i < candidates.length; i++) {
+      const r = evaluateHand(candidates[i].cards, this.evalOpts());
+      if (compareHands(r, best) > 0) {
+        best = r;
+      }
+    }
+    const tied = candidates.filter((s) => compareHands(evaluateHand(s.cards, this.evalOpts()), best) === 0);
+    if (this.config.tieBreak === 'seed' && this.config.tieBreakKey && tied.length > 1) {
+      const key = tied.map((s) => s.seatNo).join('-');
+      const pick = FairRandom.int(
+        { serverSeed: this.config.tieBreakKey, clientSeed: `tp-tiebreak-${key}`, nonce: this.config.tieBreakNonce ?? 0 },
+        tied.length,
+      );
+      return [tied[pick]];
+    }
+    return tied;
   }
 
   views(): TPSeatView[] {
@@ -270,7 +309,7 @@ export class TeenPattiGame {
 
     this.turnSeatNo = next;
     const capReached = this.stakeLevel >= this.config.chaalCap;
-    if (capReached && this.actingSeats().every((x) => x.actedInLevel)) {
+    if (this.config.cardVisibility !== 'manual' && capReached && this.actingSeats().every((x) => x.actedInLevel)) {
       return this.resolveHand(events);
     }
 
@@ -281,10 +320,12 @@ export class TeenPattiGame {
     this.status = 'finished';
     const showdown = this.inHandSeats().length > 1;
     const reveal = this.buildReveal();
+    const potGroups = this.buildPots();
     const potShare = new Map<number, number>();
-    for (const g of this.buildPots()) {
+    for (const g of potGroups) {
       potShare.set(g.seatNo, (potShare.get(g.seatNo) ?? 0) + g.amount);
     }
+    this.rakeCoins = this.pot - Array.from(potShare.values()).reduce((s, v) => s + v, 0);
     const payoffs: Record<number, number> = {};
     for (const s of this.seats) {
       const share = potShare.get(s.seatNo) ?? 0;
@@ -296,6 +337,7 @@ export class TeenPattiGame {
       winners: this.computeWinners(),
       payoffs,
       reveal,
+      rakeCoins: this.rakeCoins,
     };
     this.pot = 0;
     events.push({
@@ -317,7 +359,7 @@ export class TeenPattiGame {
   private buildReveal(): HandReveal[] {
     const inHand = this.inHandSeats();
     return inHand.map((s) => {
-      const rank = evaluateHand(s.cards);
+      const rank = evaluateHand(s.cards, this.evalOpts());
       return {
         seatNo: s.seatNo,
         playerId: s.playerId,
@@ -334,14 +376,11 @@ export class TeenPattiGame {
     if (inHand.length === 1) return [inHand[0].seatNo];
     const acting = this.actingSeats();
     const contest = acting.length >= 2 ? acting : inHand;
-    let best = contest[0];
-    for (const s of contest) {
-      if (compareHands(evaluateHand(s.cards), evaluateHand(best.cards)) > 0) best = s;
-    }
-    return contest.filter((s) => compareHands(evaluateHand(s.cards), evaluateHand(best.cards)) === 0).map((s) => s.seatNo);
+    return this.bestSeats(contest).map((s) => s.seatNo);
   }
 
   private buildPots(): { seatNo: number; amount: number }[] {
+    const rakePercent = this.config.rakePercent ?? 0;
     const inHand = this.inHandSeats();
     const acting = this.actingSeats();
     const contest = acting.length >= 2 ? acting : inHand;
@@ -354,27 +393,24 @@ export class TeenPattiGame {
       prev = L;
       const eligible = contest.filter((s) => s.committed >= L);
       if (eligible.length === 0) continue;
-      let best = evaluateHand(eligible[0].cards);
-      let ties = [eligible[0]];
+      let best = evaluateHand(eligible[0].cards, this.evalOpts());
       for (let i = 1; i < eligible.length; i++) {
-        const cmp = compareHands(evaluateHand(eligible[i].cards), best);
-        if (cmp > 0) {
-          best = evaluateHand(eligible[i].cards);
-          ties = [eligible[i]];
-        } else if (cmp === 0) {
-          ties.push(eligible[i]);
-        }
+        const cmp = compareHands(evaluateHand(eligible[i].cards, this.evalOpts()), best);
+        if (cmp > 0) best = evaluateHand(eligible[i].cards, this.evalOpts());
       }
-      const tiedSorted = [...ties].sort((a, b) => a.seatNo - b.seatNo);
-      const share = Math.floor(layerTotal / tiedSorted.length);
-      let remainder = layerTotal % tiedSorted.length;
-      for (const t of tiedSorted) {
+      const tied = eligible.filter((s) => compareHands(evaluateHand(s.cards, this.evalOpts()), best) === 0);
+      const layerRake = Math.floor(layerTotal * rakePercent / 100);
+      const distTotal = layerTotal - layerRake;
+      const winners = this.bestSeats(tied);
+      const share = Math.floor(distTotal / winners.length);
+      let remainder = distTotal % winners.length;
+      for (const w of winners.sort((a, b) => a.seatNo - b.seatNo)) {
         let amount = share;
         if (remainder > 0) {
           amount += 1;
           remainder -= 1;
         }
-        potGroups.push({ seatNo: t.seatNo, amount });
+        potGroups.push({ seatNo: w.seatNo, amount });
       }
     }
     return potGroups;

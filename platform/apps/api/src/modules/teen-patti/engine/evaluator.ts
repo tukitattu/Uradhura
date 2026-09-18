@@ -6,6 +6,12 @@ export interface TPHandRank {
   values: [number, number, number];
 }
 
+export interface EvaluateOptions {
+  rankingOrder?: string[];
+}
+
+export const TENPATTI_RANK_ORDER_DEFAULT: string[] = ['trail', 'pure_sequence', 'sequence', 'color', 'pair', 'high_card'];
+
 function valuesAsc(cards: TPCard[]): number[] {
   return [...cards]
     .map((c) => c.r)
@@ -32,37 +38,43 @@ function pairValues(values: number[]): [number, number, number] {
   return [values[1], values[1], values[0]];
 }
 
-export function evaluateHand(cards: TPCard[]): TPHandRank {
+export function evaluateHand(cards: TPCard[], opts: EvaluateOptions = {}): TPHandRank {
+  const order = opts.rankingOrder ?? TENPATTI_RANK_ORDER_DEFAULT;
+  const rankOf = (category: string): number => {
+    const idx = order.map((c) => c.toLowerCase()).indexOf(category);
+    if (idx === -1) return 0;
+    return order.length - idx;
+  };
   const asc = valuesAsc(cards);
   const suits = new Set(cards.map((c) => c.s));
   const isFlush = suits.size === 1;
 
   if (asc[0] === asc[1] && asc[1] === asc[2]) {
-    return { label: 'Trail', rank: 6, values: [asc[2], asc[1], asc[0]] };
+    return { label: 'Trail', rank: rankOf('trail'), values: [asc[2], asc[1], asc[0]] };
   }
 
   if (isSequence(asc) && isFlush) {
     const v = sequenceHigh(asc);
-    return { label: 'Pure Sequence', rank: 5, values: v };
+    return { label: 'Pure Sequence', rank: rankOf('pure_sequence'), values: v };
   }
 
   if (isSequence(asc)) {
     const v = sequenceHigh(asc);
-    return { label: 'Sequence', rank: 4, values: v };
+    return { label: 'Sequence', rank: rankOf('sequence'), values: v };
   }
 
   if (isFlush) {
-    return { label: 'Color', rank: 3, values: [asc[2], asc[1], asc[0]] };
+    return { label: 'Color', rank: rankOf('color'), values: [asc[2], asc[1], asc[0]] };
   }
 
   if (isPair(asc)) {
     const v = pairValues(asc);
-    return { label: 'Pair', rank: 2, values: v };
+    return { label: 'Pair', rank: rankOf('pair'), values: v };
   }
 
   return {
     label: 'High Card',
-    rank: 1,
+    rank: rankOf('high_card'),
     values: [asc[2], asc[1], asc[0]],
   };
 }

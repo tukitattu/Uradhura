@@ -83,6 +83,8 @@ export class GameEngineService {
       throw new NotFoundException('Game not found');
     }
 
+    const config = game.configurations[0];
+
     if (game.status !== 'active') {
       throw new BadRequestException(
         `Game is not active. Current status: ${game.status}`,
@@ -187,8 +189,40 @@ export class GameEngineService {
       );
     }
 
+    // 7b. Enforce the per-player daily loss cap from the active config.
+    const maxDailyLoss = config?.maxDailyLossPerPlayer ? new Decimal(config.maxDailyLossPerPlayer) : null;
+    if (maxDailyLoss && maxDailyLoss.gt(0)) {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const [debits, credits] = await Promise.all([
+        this.prisma.walletTransaction.aggregate({
+          where: {
+            playerId,
+            currency: 'coins',
+            type: 'bet_debit',
+            createdAt: { gte: startOfDay },
+          },
+          _sum: { amount: true },
+        }),
+        this.prisma.walletTransaction.aggregate({
+          where: {
+            playerId,
+            currency: 'coins',
+            type: 'bet_credit',
+            createdAt: { gte: startOfDay },
+          },
+          _sum: { amount: true },
+        }),
+      ]);
+      const netLossToday = new Decimal(debits._sum.amount ?? 0).sub(new Decimal(credits._sum.amount ?? 0));
+      if (netLossToday.add(betAmount).gt(maxDailyLoss)) {
+        throw new BadRequestException(
+          `Daily loss limit reached. Limit: ${maxDailyLoss}, already lost: ${netLossToday}`,
+        );
+      }
+    }
+
     // 8. Execute atomic bet placement
-    const config = game.configurations[0];
     const potentialPayout = betAmount.mul(option.multiplier);
 
     const result = await this.prisma.$transaction(async (tx) => {

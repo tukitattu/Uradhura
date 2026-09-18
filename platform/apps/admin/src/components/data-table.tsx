@@ -68,8 +68,8 @@ export function DataTable<T extends Record<string, unknown>>({
 
   const sortedData = [...data].sort((a, b) => {
     if (!sortKey) return 0;
-    const aVal = a[sortKey];
-    const bVal = b[sortKey];
+    const aVal = a[sortKey] as any;
+    const bVal = b[sortKey] as any;
     if (aVal === bVal) return 0;
     const comparison = aVal < bVal ? -1 : 1;
     return sortDirection === "asc" ? comparison : -comparison;

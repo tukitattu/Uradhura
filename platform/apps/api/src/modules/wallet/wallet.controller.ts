@@ -12,6 +12,7 @@ import {
   UseGuards,
   Request,
   ParseUUIDPipe,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -23,6 +24,7 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { WalletService } from './wallet.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -32,7 +34,10 @@ import { Roles } from '../auth/decorators/roles.decorator';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('wallet')
 export class WalletController {
-  constructor(private readonly walletService: WalletService) {}
+  constructor(
+    private readonly walletService: WalletService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   // ============================================================
   // PLAYER WALLET (self)
@@ -120,15 +125,21 @@ export class WalletController {
   @ApiResponse({ status: 400, description: 'Invalid adjustment amount or missing reason' })
   async adjustWallet(
     @Param('playerId', ParseUUIDPipe) playerId: string,
-    @Body() body: { currency: 'coins' | 'diamonds'; amount: number; reason: string },
+    @Body() body: { currency: 'coins' | 'diamonds'; amount: number; reason: string; idempotencyKey?: string },
     @Request() req: any,
   ) {
+    const exists = await this.prisma.player.findUnique({
+      where: { id: playerId },
+      select: { id: true },
+    });
+    if (!exists) throw new NotFoundException(`Player ${playerId} not found`);
     return this.walletService.adminAdjustment(
       playerId,
       body.currency,
       body.amount,
       req.user.sub,
       body.reason,
+      body.idempotencyKey,
     );
   }
 

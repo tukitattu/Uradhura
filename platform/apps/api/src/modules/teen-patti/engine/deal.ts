@@ -13,11 +13,18 @@ export interface DealtSeat extends DealSeat {
   cards: TPCard[];
 }
 
-export function dealHands(input: FairSeedInput, seats: DealSeat[]): { seats: DealtSeat[]; deck: TPCard[] } {
-  const deck = FairRandom.shuffle(buildDeck(), { ...input, instance: 0 });
+export interface DealOptions {
+  cardsPerPlayer?: number;
+  deckCount?: number;
+}
+
+export function dealHands(input: FairSeedInput, seats: DealSeat[], opts: DealOptions = {}): { seats: DealtSeat[]; deck: TPCard[] } {
+  const cardsPerPlayer = opts.cardsPerPlayer ?? 3;
+  const deckCount = opts.deckCount ?? 1;
+  const deck = FairRandom.shuffle(buildDeck(deckCount), { ...input, instance: 0 });
   const dealt = seats.map((s, i) => ({
     ...s,
-    cards: deck.slice(i * 3, i * 3 + 3),
+    cards: deck.slice(i * cardsPerPlayer, i * cardsPerPlayer + cardsPerPlayer),
   }));
   return { seats: dealt, deck };
 }

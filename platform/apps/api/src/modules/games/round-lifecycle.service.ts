@@ -36,6 +36,8 @@ interface RoundPayload {
   nonce: number;
 }
 
+export { RoundPayload };
+
 @Injectable()
 export class RoundLifecycleService {
   private readonly logger = new Logger(RoundLifecycleService.name);
@@ -378,6 +380,13 @@ export class RoundLifecycleService {
       metadata: { engine: 'round-lifecycle' },
     });
 
+    // Accrue house-earnings commissions for the admins assigned to this game.
+    try {
+      await this.accrueHouseCommission(settlements.round.gameId, roundId);
+    } catch (err) {
+      this.logger.warn(`Commission accrual failed for round ${roundId}: ${err.message}`);
+    }
+
     return {
       round: settlements.round,
       totalWinners: settlements.totalWinners,
@@ -581,6 +590,206 @@ export class RoundLifecycleService {
       }
       return refunded;
     });
+  }
+
+  // ----------------------------------------------------------
+  // Admin lifecycle levers
+  // ----------------------------------------------------------
+
+  /**
+   * Admin override: force a stuck round to produce its result. Advances
+   * the round through start-betting / close-betting as needed, records an
+   * audit trail, and reuses the committed fair seed (never re-derives it).
+   */
+  async forceResultForRound(
+    roundId: string,
+    gameId: string,
+    adminId: string,
+  ): Promise<{ round: GameRound; payload: RoundPayload }> {
+    const row = await this.prisma.gameRound.findUnique({ where: { id: roundId } });
+    if (!row) throw new NotFoundException(`Round ${roundId} not found`);
+    if (row.gameId !== gameId) throw new NotFoundException(`Round ${roundId} not found under game ${gameId}`);
+
+    if (row.status === 'upcoming') {
+      await this.startBetting(roundId);
+    }
+    if (row.status === 'betting_open') {
+      await this.closeBetting(roundId);
+    }
+
+    const current = await this.prisma.gameRound.findUnique({ where: { id: roundId } });
+    if (current.status === 'result_processing') {
+      throw new ConflictException('Round already has a result');
+    }
+    if (current.status !== 'betting_closed') {
+      throw new BadRequestException(`Cannot force result from status ${current.status}`);
+    }
+
+    const result = await this.processResult(roundId);
+
+    await this.auditService.log({
+      actorId: adminId,
+      actorType: 'admin',
+      action: 'round.force_result',
+      entityType: 'GameRound',
+      entityId: roundId,
+      metadata: { gameId: row.gameId },
+    });
+
+    return result;
+  }
+
+  /**
+   * Admin override: force a stuck round to settle (generates the result
+   * first if needed, then credits winners atomically).
+   */
+  async forceSettleRound(
+    roundId: string,
+    gameId: string,
+    adminId: string,
+  ): Promise<{ round: GameRound; totalWinners: number; totalPayout: Decimal; revealedSeed: SeedBundle }> {
+    const row = await this.prisma.gameRound.findUnique({ where: { id: roundId } });
+    if (!row) throw new NotFoundException(`Round ${roundId} not found`);
+    if (row.gameId !== gameId) throw new NotFoundException(`Round ${roundId} not found under game ${gameId}`);
+
+    if (row.status === 'upcoming') {
+      await this.startBetting(roundId);
+    }
+    if (row.status === 'betting_open') {
+      await this.closeBetting(roundId);
+    }
+
+    const current = await this.prisma.gameRound.findUnique({ where: { id: roundId } });
+    if (current.status === 'betting_closed') {
+      await this.processResult(roundId);
+    } else if (current.status !== 'result_processing') {
+      throw new BadRequestException(`Cannot force settle from status ${current.status}`);
+    }
+
+    const result = await this.settleRound(roundId);
+
+    await this.auditService.log({
+      actorId: adminId,
+      actorType: 'admin',
+      action: 'round.force_settle',
+      entityType: 'GameRound',
+      entityId: roundId,
+      after: {
+        totalPayout: result.totalPayout.toString(),
+        totalWinners: result.totalWinners,
+        gameId: row.gameId,
+      },
+    });
+
+    return result;
+  }
+
+  /**
+   * Admin override: refund every pending bet in a round and close it.
+   */
+  async adminRefundRound(
+    roundId: string,
+    gameId: string,
+    reason: string,
+    adminId: string,
+  ): Promise<number> {
+    const row = await this.prisma.gameRound.findUnique({ where: { id: roundId } });
+    if (!row) throw new NotFoundException(`Round ${roundId} not found`);
+    if (row.gameId !== gameId) throw new NotFoundException(`Round ${roundId} not found under game ${gameId}`);
+
+    const refunded = await this.refundRoundBets(roundId, reason);
+
+    await this.auditService.log({
+      actorId: adminId,
+      actorType: 'admin',
+      action: 'round.refunded',
+      entityType: 'GameRound',
+      entityId: roundId,
+      metadata: { refunded, reason },
+    });
+
+    return refunded;
+  }
+
+  // ----------------------------------------------------------
+  // Commission producer (house-earnings → assigned admins)
+  // ----------------------------------------------------------
+
+  /**
+   * Accrues an AdminCommission for every admin with an active subscription
+   * assigned to the game, from this round's house earnings
+   * (totalBetAmount − totalPayout). Keyed by [adminId, gameId, month] so
+   * re-settlement or retries never double-count: increments are idempotent.
+   */
+  async accrueHouseCommission(gameId: string, roundId: string): Promise<number> {
+    const round = await this.prisma.gameRound.findUnique({
+      where: { id: roundId },
+      select: { gameId: true, totalBetAmount: true, totalPayout: true, settledAt: true },
+    });
+    if (!round || !round.settledAt) return 0;
+
+    const houseEarnings = new Decimal(round.totalBetAmount).sub(round.totalPayout);
+    if (houseEarnings.lte(0)) return 0;
+
+    const assignments = await this.prisma.adminGame.findMany({
+      where: { gameId: round.gameId },
+      select: { adminId: true },
+    });
+    if (assignments.length === 0) return 0;
+
+    const subs = await this.prisma.adminSubscription.findMany({
+      where: { adminId: { in: assignments.map((a) => a.adminId) }, status: 'active', accessExpiresAt: { gt: new Date() } },
+      include: { plan: { select: { commissionRate: true } } },
+    });
+    if (subs.length === 0) return 0;
+
+    const settled = round.settledAt;
+    const periodStart = new Date(Date.UTC(settled.getUTCFullYear(), settled.getUTCMonth(), 1));
+    const periodEnd = new Date(Date.UTC(settled.getUTCFullYear(), settled.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+
+    let accrued = 0;
+    for (const sub of subs) {
+      const rate = sub.plan.commissionRate ? new Decimal(sub.plan.commissionRate) : new Decimal(0);
+      if (rate.lte(0)) continue;
+      const commissionAmount = houseEarnings.mul(rate).div(100);
+
+      await this.prisma.adminCommission.upsert({
+        where: {
+          adminId_gameId_periodStart_periodEnd: {
+            adminId: sub.adminId,
+            gameId: round.gameId,
+            periodStart,
+            periodEnd,
+          },
+        },
+        create: {
+          adminId: sub.adminId,
+          gameId: round.gameId,
+          periodStart,
+          periodEnd,
+          turnover: round.totalBetAmount,
+          houseEarnings,
+          commissionRate: rate,
+          commissionAmount,
+          currency: 'coins',
+          status: 'pending',
+        },
+        update: {
+          turnover: { increment: round.totalBetAmount },
+          houseEarnings: { increment: houseEarnings },
+          commissionRate: rate,
+          commissionAmount: { increment: commissionAmount },
+        },
+      });
+      accrued++;
+    }
+
+    if (accrued > 0) {
+      this.logger.log(
+        `Accrued commissions for round ${roundId}: house earnings ${houseEarnings} across ${accrued} admin(s)`,
+      );
+    }
+    return accrued;
   }
 
   // ----------------------------------------------------------

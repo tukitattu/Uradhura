@@ -2,6 +2,8 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from '../screens/home/HomeScreen';
 import GamePlayScreen from '../screens/games/GamePlayScreen';
+import FeedScreen from '../screens/social/FeedScreen';
+import ProfileScreen from '../screens/social/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -20,6 +22,8 @@ export default function HomeStack() {
         component={GamePlayScreen}
         options={({ route }: any) => ({ title: 'Play' })}
       />
+      <Stack.Screen name="Feed" component={FeedScreen} options={{ title: 'Feed' }} />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
     </Stack.Navigator>
   );
 }

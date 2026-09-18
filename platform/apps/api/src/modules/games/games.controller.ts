@@ -29,21 +29,27 @@ import {
 import { GamesService } from './games.service';
 import { GameOptionService } from './game-option.service';
 import { GameConfigService } from './game-config.service';
+import { RoundLifecycleService } from './round-lifecycle.service';
 import { CreateGameDto, UpdateGameDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { RequireGameAccess } from './decorators/game-access.decorator';
+import { GameAccessGuard } from './guards/game-access.guard';
 import { Public } from '../auth/decorators/public.decorator';
 
 @ApiTags('Games')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard, GameAccessGuard)
 @Controller('games')
 export class GamesController {
   constructor(
     private readonly gamesService: GamesService,
     private readonly optionService: GameOptionService,
     private readonly configService: GameConfigService,
+    private readonly roundLifecycle: RoundLifecycleService,
   ) {}
 
   // ============================================================
@@ -52,6 +58,7 @@ export class GamesController {
 
   @Post()
   @Roles('super_admin', 'admin')
+  @RequirePermissions('games:create')
   @ApiOperation({ summary: 'Create a new game' })
   @ApiBody({ type: CreateGameDto })
   @ApiResponse({ status: 201, description: 'Game created successfully' })
@@ -62,6 +69,7 @@ export class GamesController {
 
   @Get()
   @Roles('super_admin', 'admin', 'game_operator', 'viewer')
+  @RequirePermissions('games:view')
   @ApiOperation({ summary: 'List all games' })
   @ApiQuery({ name: 'includeInactive', required: false, type: Boolean })
   async findAll(
@@ -72,6 +80,7 @@ export class GamesController {
 
   @Get('stats')
   @Roles('super_admin', 'admin')
+  @RequirePermissions('games:view')
   @ApiOperation({ summary: 'Get game statistics' })
   @ApiResponse({ status: 200, description: 'Game stats returned' })
   async getStats() {
@@ -98,6 +107,8 @@ export class GamesController {
 
   @Get(':id')
   @Roles('super_admin', 'admin', 'game_operator', 'viewer')
+  @RequirePermissions('games:view')
+  @RequireGameAccess('view')
   @ApiOperation({ summary: 'Get game by ID' })
   @ApiParam({ name: 'id', description: 'Game UUID' })
   @ApiResponse({ status: 200, description: 'Game found' })
@@ -108,6 +119,8 @@ export class GamesController {
 
   @Patch(':id')
   @Roles('super_admin', 'admin')
+  @RequirePermissions('games:edit')
+  @RequireGameAccess('edit')
   @ApiOperation({ summary: 'Update game' })
   @ApiParam({ name: 'id', description: 'Game UUID' })
   @ApiBody({ type: UpdateGameDto })
@@ -122,6 +135,8 @@ export class GamesController {
 
   @Patch(':id/status')
   @Roles('super_admin', 'admin')
+  @RequirePermissions('games:edit')
+  @RequireGameAccess('edit')
   @ApiOperation({ summary: 'Update game status' })
   @ApiParam({ name: 'id', description: 'Game UUID' })
   @ApiBody({ schema: { properties: { status: { type: 'string', enum: ['inactive', 'active', 'maintenance'] } } } })
@@ -139,6 +154,8 @@ export class GamesController {
 
   @Post(':id/options')
   @Roles('super_admin', 'admin')
+  @RequirePermissions('games:edit')
+  @RequireGameAccess('edit')
   @ApiOperation({ summary: 'Add a game option' })
   @ApiParam({ name: 'id', description: 'Game UUID' })
   @ApiBody({
@@ -171,6 +188,8 @@ export class GamesController {
 
   @Get(':id/options')
   @Roles('super_admin', 'admin', 'game_operator', 'viewer')
+  @RequirePermissions('games:view')
+  @RequireGameAccess('view')
   @ApiOperation({ summary: 'List game options' })
   @ApiParam({ name: 'id', description: 'Game UUID' })
   @ApiResponse({ status: 200, description: 'Options returned' })
@@ -180,6 +199,8 @@ export class GamesController {
 
   @Patch(':id/options/reorder')
   @Roles('super_admin', 'admin')
+  @RequirePermissions('games:edit')
+  @RequireGameAccess('edit')
   @ApiOperation({ summary: 'Reorder game options' })
   @ApiParam({ name: 'id', description: 'Game UUID' })
   @ApiBody({ schema: { properties: { optionIds: { type: 'array', items: { type: 'string' } } }, required: ['optionIds'] } })
@@ -193,6 +214,7 @@ export class GamesController {
 
   @Delete('options/:optionId')
   @Roles('super_admin', 'admin')
+  @RequirePermissions('games:edit')
   @ApiOperation({ summary: 'Delete a game option' })
   @ApiParam({ name: 'optionId', description: 'Option UUID' })
   @ApiResponse({ status: 200, description: 'Option deleted' })
@@ -207,6 +229,8 @@ export class GamesController {
 
   @Get(':id/config')
   @Roles('super_admin', 'admin', 'game_operator')
+  @RequirePermissions('games:view')
+  @RequireGameAccess('view')
   @ApiOperation({ summary: 'Get active game configuration' })
   @ApiParam({ name: 'id', description: 'Game UUID' })
   @ApiResponse({ status: 200, description: 'Active config returned' })
@@ -217,6 +241,8 @@ export class GamesController {
 
   @Post(':id/config')
   @Roles('super_admin', 'admin')
+  @RequirePermissions('games:configure')
+  @RequireGameAccess('edit')
   @ApiOperation({ summary: 'Create a new configuration version' })
   @ApiParam({ name: 'id', description: 'Game UUID' })
   @ApiBody({
@@ -248,6 +274,8 @@ export class GamesController {
 
   @Post(':id/config/rollback/:version')
   @Roles('super_admin', 'admin')
+  @RequirePermissions('games:configure')
+  @RequireGameAccess('edit')
   @ApiOperation({ summary: 'Rollback to a previous config version' })
   @ApiParam({ name: 'id', description: 'Game UUID' })
   @ApiParam({ name: 'version', description: 'Target config version number' })
@@ -266,6 +294,8 @@ export class GamesController {
 
   @Get(':id/bet-config')
   @Roles('super_admin', 'admin', 'game_operator')
+  @RequirePermissions('games:view')
+  @RequireGameAccess('view')
   @ApiOperation({ summary: 'Get bet configuration for a game' })
   @ApiParam({ name: 'id', description: 'Game UUID' })
   @ApiResponse({ status: 200, description: 'Bet config returned' })
@@ -275,6 +305,8 @@ export class GamesController {
 
   @Put(':id/bet-config')
   @Roles('super_admin', 'admin')
+  @RequirePermissions('games:configure')
+  @RequireGameAccess('edit')
   @ApiOperation({ summary: 'Update bet configuration for a game' })
   @ApiParam({ name: 'id', description: 'Game UUID' })
   @ApiBody({
@@ -306,6 +338,8 @@ export class GamesController {
 
   @Get(':id/rounds')
   @Roles('super_admin', 'admin', 'game_operator', 'viewer')
+  @RequirePermissions('games:view')
+  @RequireGameAccess('view')
   @ApiOperation({ summary: 'List rounds for a game (paginated)' })
   @ApiParam({ name: 'id', description: 'Game UUID' })
   @ApiQuery({ name: 'page', required: false, type: Number })
@@ -319,5 +353,61 @@ export class GamesController {
     @Query('status') status?: string,
   ) {
     return this.gamesService.getRounds(id, page || 1, Math.min(Number(limit) || 20, 100), status);
+  }
+
+  @Post(':id/rounds/:roundId/force-result')
+  @Roles('super_admin', 'admin')
+  @RequirePermissions('games:configure')
+  @RequireGameAccess('edit')
+  @ApiOperation({ summary: 'Force-generate the result for a stuck round (closes betting first if needed)' })
+  @ApiParam({ name: 'id', description: 'Game UUID' })
+  @ApiParam({ name: 'roundId', description: 'Round UUID' })
+  @ApiResponse({ status: 200, description: 'Result processed' })
+  async forceResult(
+    @Request() req: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('roundId', ParseUUIDPipe) roundId: string,
+  ) {
+    return this.roundLifecycle.forceResultForRound(roundId, id, req.user.sub);
+  }
+
+  @Post(':id/rounds/:roundId/force-settle')
+  @Roles('super_admin', 'admin')
+  @RequirePermissions('games:configure')
+  @RequireGameAccess('edit')
+  @ApiOperation({ summary: 'Force-settle a stuck round (runs result if needed, then credits winners)' })
+  @ApiParam({ name: 'id', description: 'Game UUID' })
+  @ApiParam({ name: 'roundId', description: 'Round UUID' })
+  @ApiResponse({ status: 200, description: 'Round settled' })
+async forceSettle(
+    @Request() req: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('roundId', ParseUUIDPipe) roundId: string,
+  ) {
+    return this.roundLifecycle.forceSettleRound(roundId, id, req.user.sub);
+  }
+
+  @Post(':id/rounds/:roundId/refund')
+  @Roles('super_admin', 'admin')
+  @RequirePermissions('games:configure')
+  @RequireGameAccess('edit')
+  @ApiOperation({ summary: 'Refund every pending bet in a round and mark it closed' })
+  @ApiParam({ name: 'id', description: 'Game UUID' })
+  @ApiParam({ name: 'roundId', description: 'Round UUID' })
+  @ApiBody({ schema: { properties: { reason: { type: 'string', example: 'Faulty round closed by admin' } }, required: ['reason'] } })
+  @ApiResponse({ status: 200, description: 'Pending bets refunded' })
+async refundRound(
+    @Request() req: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('roundId', ParseUUIDPipe) roundId: string,
+    @Body('reason') reason?: string,
+  ) {
+    const refunded = await this.roundLifecycle.adminRefundRound(
+      roundId,
+      id,
+      reason || 'Refunded by admin',
+      req.user.sub,
+    );
+    return { ok: true, refunded };
   }
 }

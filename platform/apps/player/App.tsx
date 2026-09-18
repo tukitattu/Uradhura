@@ -6,6 +6,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { AuthProvider } from './src/contexts/AuthContext';
 import { SocketProvider } from './src/contexts/SocketContext';
 import { GameSocketProvider } from './src/contexts/GameSocketContext';
+import { AssetProvider } from './src/lib/assets/AssetProvider';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,13 +22,15 @@ export default function App() {
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <SocketProvider>
-            <GameSocketProvider>
-              <NavigationContainer>
-                <AppNavigator />
-              </NavigationContainer>
-            </GameSocketProvider>
-          </SocketProvider>
+          <AssetProvider>
+            <SocketProvider>
+              <GameSocketProvider>
+                <NavigationContainer>
+                  <AppNavigator />
+                </NavigationContainer>
+              </GameSocketProvider>
+            </SocketProvider>
+          </AssetProvider>
         </AuthProvider>
       </QueryClientProvider>
     </SafeAreaProvider>

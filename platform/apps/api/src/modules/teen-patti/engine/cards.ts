@@ -30,12 +30,14 @@ export function cardLabel(card: TPCard): string {
   return `${TPCardRanks[card.r]}${TPCardSuits[card.s]}`;
 }
 
-export function buildDeck(): TPCard[] {
-  const deck: TPCard[] = [];
+export function buildDeck(deckCount = 1): TPCard[] {
+  const single: TPCard[] = [];
   for (let s = 0; s < 4; s++) {
     for (let r = 2; r <= 14; r++) {
-      deck.push({ r, s });
+      single.push({ r, s });
     }
   }
+  const deck: TPCard[] = [];
+  for (let d = 0; d < deckCount; d++) deck.push(...single);
   return deck;
 }

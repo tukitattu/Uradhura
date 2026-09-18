@@ -208,9 +208,13 @@ export class WalletService {
     amount: number,
     adminId: string,
     reason: string,
+    idempotencyKey?: string,
   ) {
     return this.ledger
-      .adjustBalance(playerId, amount, reason, adminId, { currency })
+      .adjustBalance(playerId, amount, reason, adminId, {
+        currency,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
+      })
       .then((r) => r.transaction);
   }
 

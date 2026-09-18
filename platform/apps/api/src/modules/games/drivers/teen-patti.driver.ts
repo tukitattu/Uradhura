@@ -116,14 +116,18 @@ export class TeenPattiDriver implements GameDriver {
     const suits = new Set(sorted.map((c) => c.suit));
     const isPair = new Set(values).size === 2;
     const isTriple = new Set(values).size === 1;
+    // A-2-3 is a valid low sequence (Ace rolls low), matching the
+    // dedicated TeenPatti engine evaluator.
+    const isAceLowStraight = values[0] === 14 && values[1] === 3 && values[2] === 2;
     const isSequence =
-      values[0] - values[1] === 1 && values[1] - values[2] === 1;
+      (values[0] - values[1] === 1 && values[1] - values[2] === 1) || isAceLowStraight;
     const isPureSequence = isSequence && suits.size === 1;
     const isColor = suits.size === 1 && !isSequence;
+    const sequenceHigh = isAceLowStraight ? 3 : values[0];
 
     if (isTriple) return { label: 'Trail', rank: 6, highValue: values[0] };
-    if (isPureSequence) return { label: 'Pure Sequence', rank: 5, highValue: values[0] };
-    if (isSequence) return { label: 'Sequence', rank: 4, highValue: values[0] };
+    if (isPureSequence) return { label: 'Pure Sequence', rank: 5, highValue: sequenceHigh };
+    if (isSequence) return { label: 'Sequence', rank: 4, highValue: sequenceHigh };
     if (isColor) return { label: 'Color', rank: 3, highValue: values[0] };
     if (isPair) {
       const pair = values.find((v, i, arr) => arr.filter((x) => x === v).length === 2);

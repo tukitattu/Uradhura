@@ -1,0 +1,811 @@
+{
+  "generator": "platform/scripts/generate-asset-catalog.mjs",
+  "palette": {
+    "deepNavy": [
+      "#050914",
+      "#0a1220",
+      "#0f1c33",
+      "#16243f"
+    ],
+    "electricBlue": "#2e6bff",
+    "violet": "#7c3aed",
+    "cyan": "#22d3ee",
+    "white": "#eef2ff",
+    "muted": "#8fa3c8"
+  },
+  "assetCount": 84,
+  "categories": [
+    "avatars.default",
+    "badges",
+    "bg.games",
+    "bg.home",
+    "bg.live",
+    "bg.party",
+    "bg.ranking",
+    "bg.room",
+    "bg.wallet",
+    "crypto",
+    "events",
+    "frame.avatar",
+    "frame.level",
+    "frame.profile",
+    "frame.ranking",
+    "frame.vip",
+    "games.teen-patti.cards",
+    "games.teen-patti.chips",
+    "games.teen-patti.effects",
+    "games.teen-patti.seats",
+    "games.teen-patti.table",
+    "gifts.basic",
+    "gifts.luxury",
+    "gifts.premium",
+    "icons.audio-seat",
+    "icons.home",
+    "icons.invite",
+    "icons.navigation",
+    "icons.profile",
+    "logo",
+    "notifications",
+    "rewards",
+    "tasks",
+    "wallet"
+  ],
+  "assets": [
+    {
+      "key": "avatars.default.cobalt",
+      "name": "Default Avatar: Cobalt",
+      "category": "avatars.default",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "avatars.default.neon",
+      "name": "Default Avatar: Neon",
+      "category": "avatars.default",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "badges.level-star",
+      "name": "Level Star Badge",
+      "category": "badges",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "badges.verified",
+      "name": "Verified Badge",
+      "category": "badges",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "bg.games.default",
+      "name": "Games Background",
+      "category": "bg.games",
+      "target": "games",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "bg.home.default",
+      "name": "Home Background",
+      "category": "bg.home",
+      "target": "home",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "bg.live.default",
+      "name": "Live Background",
+      "category": "bg.live",
+      "target": "live",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "bg.party.default",
+      "name": "Party Background",
+      "category": "bg.party",
+      "target": "party",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "bg.ranking.default",
+      "name": "Ranking Background",
+      "category": "bg.ranking",
+      "target": "ranking",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "bg.room.default",
+      "name": "Room Background",
+      "category": "bg.room",
+      "target": "room",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "bg.wallet.default",
+      "name": "Wallet Background",
+      "category": "bg.wallet",
+      "target": "wallet",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "crypto.btc",
+      "name": "Bitcoin (mark)",
+      "category": "crypto",
+      "target": "crypto",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "crypto.coming-soon",
+      "name": "Crypto Coming Soon",
+      "category": "crypto",
+      "target": "crypto",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "crypto.eth",
+      "name": "Ethereum (mark)",
+      "category": "crypto",
+      "target": "crypto",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "crypto.usdt",
+      "name": "Tether (mark)",
+      "category": "crypto",
+      "target": "crypto",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "crypto.wallet-bg",
+      "name": "Crypto Coming Soon BG",
+      "category": "crypto",
+      "target": "crypto",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "events.banner-bg",
+      "name": "Event Banner Background",
+      "category": "events",
+      "target": "home",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "frame.avatar.default",
+      "name": "Avatar Frame: Default",
+      "category": "frame.avatar",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "frame.avatar.top1",
+      "name": "Avatar Frame: Rank 1",
+      "category": "frame.avatar",
+      "target": "ranking",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "frame.avatar.top2",
+      "name": "Avatar Frame: Rank 2",
+      "category": "frame.avatar",
+      "target": "ranking",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "frame.level.bronze",
+      "name": "Level Frame: Bronze",
+      "category": "frame.level",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "frame.profile.gilded",
+      "name": "Profile Frame: Gilded",
+      "category": "frame.profile",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "frame.ranking.podium",
+      "name": "Ranking Podium Card",
+      "category": "frame.ranking",
+      "target": "ranking",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "frame.vip.badge",
+      "name": "VIP Ring",
+      "category": "frame.vip",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "games.teen-patti.cards.back",
+      "name": "Teen Patti Card Back",
+      "category": "games.teen-patti.cards",
+      "target": "teenpatti",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "games.teen-patti.cards.face",
+      "name": "Teen Patti Card Face",
+      "category": "games.teen-patti.cards",
+      "target": "teenpatti",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "games.teen-patti.chips.blue",
+      "name": "Chip: blue",
+      "category": "games.teen-patti.chips",
+      "target": "teenpatti",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "games.teen-patti.chips.cyan",
+      "name": "Chip: cyan",
+      "category": "games.teen-patti.chips",
+      "target": "teenpatti",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "games.teen-patti.chips.gold",
+      "name": "Chip: gold",
+      "category": "games.teen-patti.chips",
+      "target": "teenpatti",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "games.teen-patti.chips.violet",
+      "name": "Chip: violet",
+      "category": "games.teen-patti.chips",
+      "target": "teenpatti",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "games.teen-patti.effects.winner-glow",
+      "name": "Winner Glow",
+      "category": "games.teen-patti.effects",
+      "target": "teenpatti",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "games.teen-patti.seats.p1",
+      "name": "Seat: P1",
+      "category": "games.teen-patti.seats",
+      "target": "teenpatti",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "games.teen-patti.seats.p2",
+      "name": "Seat: P2",
+      "category": "games.teen-patti.seats",
+      "target": "teenpatti",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "games.teen-patti.seats.p3",
+      "name": "Seat: P3",
+      "category": "games.teen-patti.seats",
+      "target": "teenpatti",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "games.teen-patti.table.bg",
+      "name": "Teen Patti Table",
+      "category": "games.teen-patti.table",
+      "target": "teenpatti",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "gifts.basic.candy",
+      "name": "Gift: Candy",
+      "category": "gifts.basic",
+      "target": "gift",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "gifts.basic.heart",
+      "name": "Gift: Heart",
+      "category": "gifts.basic",
+      "target": "gift",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "gifts.basic.rose",
+      "name": "Gift: Rose",
+      "category": "gifts.basic",
+      "target": "gift",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "gifts.basic.star",
+      "name": "Gift: Star",
+      "category": "gifts.basic",
+      "target": "gift",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "gifts.luxury.world",
+      "name": "Gift: World",
+      "category": "gifts.luxury",
+      "target": "gift",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "gifts.premium.crown",
+      "name": "Gift: Crown",
+      "category": "gifts.premium",
+      "target": "gift",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "gifts.premium.diamond",
+      "name": "Gift: Diamond",
+      "category": "gifts.premium",
+      "target": "gift",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "gifts.premium.rocket",
+      "name": "Gift: Rocket",
+      "category": "gifts.premium",
+      "target": "gift",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.audio-seat.co-host",
+      "name": "Co-Host Seat",
+      "category": "icons.audio-seat",
+      "target": "room",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.audio-seat.host",
+      "name": "Host Seat",
+      "category": "icons.audio-seat",
+      "target": "room",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.audio-seat.user",
+      "name": "User Seat",
+      "category": "icons.audio-seat",
+      "target": "room",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.home.banner-cta",
+      "name": "Home Banner CTA",
+      "category": "icons.home",
+      "target": "home",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.home.featured",
+      "name": "Featured Star",
+      "category": "icons.home",
+      "target": "home",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.home.live-now",
+      "name": "Live Now",
+      "category": "icons.home",
+      "target": "live",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.home.ranking-badge",
+      "name": "Ranking Badge",
+      "category": "icons.home",
+      "target": "ranking",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.invite.facebook",
+      "name": "Share: Facebook",
+      "category": "icons.invite",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.invite.instagram",
+      "name": "Share: Instagram",
+      "category": "icons.invite",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.invite.link",
+      "name": "Share: Copy Link",
+      "category": "icons.invite",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.invite.share",
+      "name": "Share (app)",
+      "category": "icons.invite",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.invite.telegram",
+      "name": "Share: Telegram",
+      "category": "icons.invite",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.invite.whatsapp",
+      "name": "Share: WhatsApp",
+      "category": "icons.invite",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.invite.x",
+      "name": "Share: X",
+      "category": "icons.invite",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.navigation.games",
+      "name": "Nav games",
+      "category": "icons.navigation",
+      "target": "games",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.navigation.games.selected",
+      "name": "Nav games (selected)",
+      "category": "icons.navigation",
+      "target": "games",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.navigation.home",
+      "name": "Nav home",
+      "category": "icons.navigation",
+      "target": "home",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.navigation.home.selected",
+      "name": "Nav home (selected)",
+      "category": "icons.navigation",
+      "target": "home",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.navigation.live",
+      "name": "Nav live",
+      "category": "icons.navigation",
+      "target": "live",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.navigation.live.selected",
+      "name": "Nav live (selected)",
+      "category": "icons.navigation",
+      "target": "live",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.navigation.messages",
+      "name": "Nav messages",
+      "category": "icons.navigation",
+      "target": "messages",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.navigation.messages.selected",
+      "name": "Nav messages (selected)",
+      "category": "icons.navigation",
+      "target": "messages",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.navigation.party",
+      "name": "Nav party",
+      "category": "icons.navigation",
+      "target": "party",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.navigation.party.selected",
+      "name": "Nav party (selected)",
+      "category": "icons.navigation",
+      "target": "party",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.navigation.profile",
+      "name": "Nav profile",
+      "category": "icons.navigation",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.navigation.profile.selected",
+      "name": "Nav profile (selected)",
+      "category": "icons.navigation",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.navigation.wallet",
+      "name": "Nav wallet",
+      "category": "icons.navigation",
+      "target": "wallet",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.navigation.wallet.selected",
+      "name": "Nav wallet (selected)",
+      "category": "icons.navigation",
+      "target": "wallet",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.profile.items",
+      "name": "Profile Items",
+      "category": "icons.profile",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.profile.level",
+      "name": "Profile Level",
+      "category": "icons.profile",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.profile.live-center",
+      "name": "Live Center",
+      "category": "icons.profile",
+      "target": "live",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.profile.stats",
+      "name": "Profile Stats",
+      "category": "icons.profile",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "icons.profile.store",
+      "name": "Profile Store",
+      "category": "icons.profile",
+      "target": "profile",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "logo.uradhura-app-icon",
+      "name": "Uradhura App Icon",
+      "category": "logo",
+      "target": "global",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "logo.uradhura-emblem",
+      "name": "Uradhura Emblem",
+      "category": "logo",
+      "target": "global",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "logo.uradhura-logo",
+      "name": "Uradhura Logo",
+      "category": "logo",
+      "target": "global",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "logo.uradhura-splash",
+      "name": "Uradhura Splash",
+      "category": "logo",
+      "target": "login",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "notifications.bell",
+      "name": "Notification Bell",
+      "category": "notifications",
+      "target": "messages",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "rewards.claim",
+      "name": "Reward Claim",
+      "category": "rewards",
+      "target": "home",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "tasks.daily",
+      "name": "Daily Task",
+      "category": "tasks",
+      "target": "home",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    },
+    {
+      "key": "wallet.card-bg",
+      "name": "Wallet Card Background",
+      "category": "wallet",
+      "target": "wallet",
+      "sortOrder": 0,
+      "isBundled": true,
+      "format": "svg"
+    }
+  ]
+}
