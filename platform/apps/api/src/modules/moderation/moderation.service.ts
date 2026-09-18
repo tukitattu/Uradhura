@@ -112,13 +112,23 @@ export class ModerationService {
 
     return {
       data: reports,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
     };
+  }
+
+  async getReport(reportId: string) {
+    const report = await this.prisma.report.findUnique({
+      where: { id: reportId },
+      include: {
+        reporter: { select: { id: true, username: true, displayName: true, avatar: true } },
+        room: { select: { id: true, title: true } },
+      },
+    });
+    if (!report) throw new NotFoundException('Report not found');
+    return report;
   }
 
   async updateReportStatus(

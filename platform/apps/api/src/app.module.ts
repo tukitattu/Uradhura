@@ -18,6 +18,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AuditModule } from './modules/audit/audit.module';
 import { HealthModule } from './modules/health/health.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
 
 @Module({
@@ -45,6 +46,7 @@ import { GatewayModule } from './modules/gateway/gateway.module';
     AuditModule,
     HealthModule,
     SettingsModule,
+    DashboardModule,
     GatewayModule,
   ],
 })

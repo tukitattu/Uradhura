@@ -8,7 +8,13 @@ export function useReports(params?: { page?: number; pageSize?: number; status?:
   return useQuery({
     queryKey: ["reports", params],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<Report>>("/reports", { params });
+      const { data } = await api.get<PaginatedResponse<Report>>("/moderation/reports", {
+        params: {
+          page: params?.page,
+          limit: params?.pageSize,
+          ...(params?.status && { status: params.status }),
+        },
+      });
       return data;
     },
   });
@@ -18,7 +24,7 @@ export function useReport(id: string) {
   return useQuery({
     queryKey: ["report", id],
     queryFn: async () => {
-      const { data } = await api.get<{ data: Report }>(`/reports/${id}`);
+      const { data } = await api.get<{ data: Report }>(`/moderation/reports/${id}`);
       return data.data;
     },
     enabled: !!id,
@@ -29,7 +35,10 @@ export function useAssignReport() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, assignedTo }: { id: string; assignedTo: string }) => {
-      const { data } = await api.patch(`/reports/${id}/assign`, { assignedTo });
+      const { data } = await api.patch(`/moderation/reports/${id}`, {
+        status: "reviewing",
+        assignedTo,
+      });
       return data;
     },
     onSuccess: (_, variables) => {
@@ -43,7 +52,10 @@ export function useResolveReport() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, resolution }: { id: string; resolution: string }) => {
-      const { data } = await api.patch(`/reports/${id}/resolve`, { resolution });
+      const { data } = await api.patch(`/moderation/reports/${id}`, {
+        status: "resolved",
+        resolution,
+      });
       return data;
     },
     onSuccess: (_, variables) => {
@@ -57,7 +69,7 @@ export function useDismissReport() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data } = await api.patch(`/reports/${id}/dismiss`);
+      const { data } = await api.patch(`/moderation/reports/${id}`, { status: "dismissed" });
       return data;
     },
     onSuccess: () => {

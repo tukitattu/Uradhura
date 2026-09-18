@@ -96,6 +96,16 @@ export class ModerationController {
     });
   }
 
+  @Get('reports/:reportId')
+  @Roles('super_admin', 'admin', 'moderator')
+  @ApiOperation({ summary: 'Get a single report' })
+  @ApiParam({ name: 'reportId', description: 'Report UUID' })
+  @ApiResponse({ status: 200, description: 'Report returned' })
+  @ApiResponse({ status: 404, description: 'Report not found' })
+  async getReport(@Param('reportId', ParseUUIDPipe) reportId: string) {
+    return { data: await this.moderationService.getReport(reportId) };
+  }
+
   @Patch('reports/:reportId')
   @Roles('super_admin', 'admin', 'moderator')
   @ApiOperation({ summary: 'Update report status' })

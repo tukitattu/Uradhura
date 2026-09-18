@@ -8,7 +8,9 @@ export function useGames(params?: { page?: number; pageSize?: number; status?: s
   return useQuery({
     queryKey: ["games", params],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<Game>>("/games", { params });
+      const { data } = await api.get<PaginatedResponse<Game>>("/games", {
+        params: { includeInactive: true, ...params },
+      });
       return data;
     },
   });

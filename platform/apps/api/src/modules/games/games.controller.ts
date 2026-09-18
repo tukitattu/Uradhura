@@ -296,4 +296,25 @@ export class GamesController {
   ) {
     return this.configService.updateBetConfig(id, data);
   }
+
+  // ============================================================
+  // ROUNDS
+  // ============================================================
+
+  @Get(':id/rounds')
+  @Roles('super_admin', 'admin', 'game_operator', 'viewer')
+  @ApiOperation({ summary: 'List rounds for a game (paginated)' })
+  @ApiParam({ name: 'id', description: 'Game UUID' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiResponse({ status: 200, description: 'Rounds returned' })
+  async getRounds(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('status') status?: string,
+  ) {
+    return this.gamesService.getRounds(id, page || 1, Math.min(Number(limit) || 20, 100), status);
+  }
 }

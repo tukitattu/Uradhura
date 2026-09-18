@@ -218,4 +218,40 @@ export class GamesService {
       },
     });
   }
+
+  async getRounds(gameId: string, page = 1, limit = 20, status?: string) {
+    const game = await this.prisma.game.findUnique({ where: { id: gameId } });
+    if (!game) {
+      throw new NotFoundException('Game not found');
+    }
+
+    const [rounds, total] = await Promise.all([
+      this.prisma.gameRound.findMany({
+        where: {
+          gameId,
+          ...(status ? { status } : {}),
+        },
+        orderBy: { roundNumber: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          _count: { select: { bets: true } },
+        },
+      }),
+      this.prisma.gameRound.count({
+        where: {
+          gameId,
+          ...(status ? { status } : {}),
+        },
+      }),
+    ]);
+
+    return {
+      data: rounds,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
 }
