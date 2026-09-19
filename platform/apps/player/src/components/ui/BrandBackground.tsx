@@ -1,7 +1,8 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { bundledSvg } from '../../lib/assets/registry';
+import { imageFor } from '../../lib/assets/uraliveImages';
 
 interface Props {
   /** Bundled SVG background key, e.g. 'bg.home.default'. */
@@ -13,14 +14,17 @@ interface Props {
 }
 
 /**
- * Full-bleed branded background rendered from the SVG catalogue bundled
- * with the APK. Instant and offline-safe — no remote fetch at mount time.
+ * Full-bleed branded background rendered from the asset catalogue bundled
+ * with the APK (real Uralive artwork when available, generated SVG otherwise).
+ * Instant and offline-safe — no remote fetch at mount time.
  */
 export function BrandBackground({ assetKey, overlay = 0.45, bottomScrim = true, children }: Props) {
-  const svg = bundledSvg(assetKey);
+  const image = imageFor(assetKey);
+  const svg = image ? null : bundledSvg(assetKey);
 
   return (
     <View style={styles.container}>
+      {image && <Image source={image} style={StyleSheet.absoluteFill} resizeMode="cover" />}
       {svg && <SvgXml xml={svg} width="100%" height="100%" style={StyleSheet.absoluteFill} />}
       <View style={[styles.wash, { backgroundColor: `rgba(6,11,22,${overlay})` }]} />
       {bottomScrim && <View style={styles.bottomScrim} />}

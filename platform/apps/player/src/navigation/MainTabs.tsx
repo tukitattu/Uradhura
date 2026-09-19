@@ -8,18 +8,20 @@ import WalletStack from './WalletStack';
 import MessagesStack from './MessagesStack';
 import ProfileStack from './ProfileStack';
 import { BrandAsset } from '../lib/assets/BrandAsset';
+import { Image } from 'react-native';
+import { imageFor } from '../lib/assets/uraliveImages';
 
 const Tab = createBottomTabNavigator();
 
-const TABS = [
+const TABS: { name: string; key: string; image?: string }[] = [
   { name: 'Home', key: 'home' },
-  { name: 'Live', key: 'live' },
-  { name: 'Party', key: 'party' },
+  { name: 'Live', key: 'live', image: 'icons.nav.live' },
+  { name: 'Party', key: 'party', image: 'icons.nav.party' },
   { name: 'Games', key: 'games' },
   { name: 'Wallet', key: 'wallet' },
-  { name: 'Messages', key: 'messages' },
-  { name: 'Profile', key: 'profile' },
-] as const;
+  { name: 'Messages', key: 'messages', image: 'icons.nav.messages' },
+  { name: 'Profile', key: 'profile', image: 'icons.nav.profile' },
+];
 
 export default function MainTabs() {
   return (
@@ -29,10 +31,14 @@ export default function MainTabs() {
         tabBarIcon: ({ focused }) => {
           const tab = TABS.find((t) => t.name === route.name);
           if (!tab) return null;
+          const size = focused ? 27 : 22;
+          if (tab.image && imageFor(tab.image)) {
+            return <Image source={imageFor(tab.image) as any} style={{ width: size, height: size }} resizeMode="contain" />;
+          }
           const key = focused
             ? `icons.navigation.${tab.key}.selected`
             : `icons.navigation.${tab.key}`;
-          return <BrandAsset assetKey={key} size={22} />;
+          return <BrandAsset assetKey={key} size={size} />;
         },
         tabBarActiveTintColor: '#22d3ee',
         tabBarInactiveTintColor: '#8fa3c8',

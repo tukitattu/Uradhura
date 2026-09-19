@@ -5,7 +5,15 @@ const KEYS = {
   REFRESH_TOKEN: '@uradhura/refresh_token',
   LANGUAGE: '@uradhura/language',
   THEME: '@uradhura/theme',
+  AVATAR_DRESS: '@uradhura/avatar_dress',
 } as const;
+
+export interface AvatarDress {
+  /** Bundled frame key rendered over the avatar (e.g. 'frame.avatar.top1'). */
+  frame: string | null;
+  /** Front parts toggled on (outfit/accessory bundled keys). */
+  parts: string[];
+}
 
 export const storage = {
   async getAccessToken(): Promise<string | null> {
@@ -42,4 +50,21 @@ export const storage = {
   async setTheme(theme: string): Promise<void> {
     await AsyncStorage.setItem(KEYS.THEME, theme);
   },
+
+  async getAvatarDress(): Promise<AvatarDress | null> {
+    const raw = await AsyncStorage.getItem(KEYS.AVATAR_DRESS);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as AvatarDress;
+    } catch {
+      return null;
+    }
+  },
+
+  async setAvatarDress(dress: AvatarDress): Promise<void> {
+    await AsyncStorage.setItem(KEYS.AVATAR_DRESS, JSON.stringify(dress));
+  },
 };
+
+/** WebView games origin (production = lrlive-games H5 server). */
+export const GAMES_BASE_URL = process.env.EXPO_PUBLIC_GAMES_BASE_URL || undefined;

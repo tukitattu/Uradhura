@@ -1,10 +1,23 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  RefreshControl,
+  Linking,
+  Image,
+} from 'react-native';
 import { useGames } from '../../hooks/useGames';
 import GameCard from '../../components/GameCard';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import EmptyState from '../../components/EmptyState';
 import { BrandScreen } from '../../components/ui/BrandScreen';
+import { BrandAsset } from '../../lib/assets/BrandAsset';
+import { GAMES_BASE_URL } from '../../lib/storage';
+import { imageFor } from '../../lib/assets/uraliveImages';
 import { Game, GameCategory } from '../../lib/types';
 import { colors, radius, spacing, backgroundKeys } from '../../theme';
 
@@ -49,6 +62,39 @@ export default function GameListScreen({ navigation }: any) {
 
   const header = (
     <View style={styles.head}>
+      <View style={styles.hallHero}>
+        <Image source={imageFor('bg.home.reward')} style={styles.hallBg} resizeMode="cover" />
+        <View style={styles.hallTint} />
+        <View>
+          <BrandAsset assetKey="icons.navigation.games" size={20} />
+          <Text style={styles.hallTitle}>Game Hall</Text>
+          <Text style={styles.hallSubtitle}>
+            Teen Patti plays live against the house today — more titles land with the game engine.
+          </Text>
+        </View>
+        <View style={styles.nativeBadge}>
+          <View style={styles.nativeDot} />
+          <Text style={styles.nativeBadgeText}>NATIVE · LIVE</Text>
+        </View>
+      </View>
+
+      {GAMES_BASE_URL && (
+        <TouchableOpacity
+          style={styles.webCard}
+          activeOpacity={0.85}
+          onPress={() => GAMES_BASE_URL && Linking.openURL(GAMES_BASE_URL)}
+        >
+          <BrandAsset assetKey="gifts.premium.rocket" size={26} />
+          <View style={styles.webText}>
+            <Text style={styles.webTitle}>Web games</Text>
+            <Text style={styles.webSubtitle}>
+              More titles on the games server — opens in your browser (WebView in production).
+            </Text>
+          </View>
+          <Text style={styles.webCta}>Play</Text>
+        </TouchableOpacity>
+      )}
+
       <TextInput
         style={styles.searchInput}
         placeholder="Search games..."
@@ -114,6 +160,53 @@ export default function GameListScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   head: { gap: spacing.md, paddingBottom: spacing.md },
+  hallHero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    overflow: 'hidden',
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+  },
+  hallBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  hallTint: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(10,18,32,0.46)',
+  },
+  hallTitle: { fontSize: 20, fontWeight: '800', color: colors.textSoft, marginTop: 4 },
+  hallSubtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 2, maxWidth: 220 },
+  nativeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#e11d48',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+  },
+  nativeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' },
+  nativeBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  webCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.glass,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+  },
+  webText: { flex: 1 },
+  webTitle: { fontSize: 15, fontWeight: '800', color: colors.textSoft },
+  webSubtitle: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
+  webCta: { color: colors.cyan, fontSize: 14, fontWeight: '800' },
   searchInput: {
     backgroundColor: colors.glass,
     borderColor: colors.border,

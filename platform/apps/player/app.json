@@ -5,10 +5,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/ura-logo.png",
     "scheme": "uradhura",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/ura-logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#0A1220"
     },
@@ -20,7 +20,7 @@
       "package": "com.uradhura.player",
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/ura-logo.png",
         "backgroundColor": "#0A1220"
       },
       "permissions": [

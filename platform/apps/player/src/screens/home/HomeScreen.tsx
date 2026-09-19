@@ -1,5 +1,5 @@
 import React from 'react';
-import { FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View, RefreshControl } from 'react-native';
+import { FlatList, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, RefreshControl } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGames } from '../../hooks/useGames';
 import { useWallet } from '../../hooks/useWallet';
@@ -11,6 +11,7 @@ import { colors, radius, spacing } from '../../theme';
 import { backgroundKeys } from '../../theme';
 import { BrandAsset } from '../../lib/assets/BrandAsset';
 import { BrandBackground } from '../../components/ui/BrandBackground';
+import { imageFor } from '../../lib/assets/uraliveImages';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen({ navigation }: any) {
@@ -54,6 +55,8 @@ export default function HomeScreen({ navigation }: any) {
           </View>
 
           <TouchableOpacity style={styles.banner} activeOpacity={0.9}>
+            <Image source={imageFor('bg.home.reward')} style={styles.bannerBg} resizeMode="cover" />
+            <View style={styles.bannerTint} />
             <View style={styles.bannerLeft}>
               <BrandAsset assetKey="icons.home.banner-cta" size={48} />
               <View>
@@ -144,11 +147,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.glassStrong,
+    overflow: 'hidden',
     borderColor: colors.border,
     borderWidth: 1,
     borderRadius: radius.xl,
     padding: spacing.lg,
+  },
+  bannerBg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  bannerTint: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(10,18,32,0.42)',
   },
   bannerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 },
   bannerTitle: { fontSize: 17, fontWeight: '800', color: colors.goldSoft },

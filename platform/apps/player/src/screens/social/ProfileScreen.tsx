@@ -8,7 +8,7 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { useRoute, RouteProp } from '@react-navigation/native';
+import { useRoute, RouteProp, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { PlayerProfile, Post } from '../../lib/types';
@@ -17,8 +17,11 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import EmptyState from '../../components/EmptyState';
 import { BrandBackground } from '../../components/ui/BrandBackground';
 import { BrandAsset } from '../../lib/assets/BrandAsset';
+import { imageFor } from '../../lib/assets/uraliveImages';
+import { loadDress } from '../../lib/assets/avatarConfig';
 import { colors, radius, spacing, backgroundKeys } from '../../theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import type { AvatarDress } from '../../lib/storage';
 
 type RouteParams = {
   params: {
@@ -26,19 +29,34 @@ type RouteParams = {
   };
 };
 
+const CENTER_TILES = [
+  { route: 'LiveCenter', icon: 'icons.profile.live-center', label: 'Live Center' },
+  { route: 'Agency', icon: 'icons.profile.stats', label: 'My Agency' },
+  { route: 'MyItems', icon: 'icons.profile.items', label: 'My Items' },
+  { route: 'Store', icon: 'icons.profile.store', label: 'Store' },
+  { route: 'Invite', icon: 'invite.menu', label: 'Invite' },
+  { route: 'Settings', icon: 'icons.navigation.profile', label: 'Settings' },
+] as const;
+
 export default function ProfileScreen() {
   const route = useRoute<RouteProp<RouteParams, 'params'>>();
+  const navigation = useNavigation() as any;
   const { playerId } = route.params;
   const { user } = useAuth();
 
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  const isOwnProfile = user?.id === playerId;
+  const [dress, setDress] = useState<AvatarDress | null>(null);
 
   useEffect(() => {
     loadProfile();
   }, [playerId]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadDress().then(setDress).catch(() => undefined);
+    }, [])
+  );
 
   const loadProfile = async () => {
     try {
@@ -75,10 +93,17 @@ export default function ProfileScreen() {
     return <LoadingSpinner />;
   }
 
+  const isOwnProfile = user?.id === playerId;
+  const frameSource = dress?.frame && imageFor(dress.frame) ? imageFor(dress.frame) : null;
+
   const header = (
     <View style={styles.header}>
       <View style={styles.avatarWrap}>
-        <BrandAsset assetKey="frame.avatar.default" size={116} style={styles.avatarFrame} />
+        {frameSource ? (
+          <Image source={frameSource} style={styles.avatarFrame} resizeMode="contain" />
+        ) : (
+          <BrandAsset assetKey="frame.avatar.top1" size={132} style={styles.avatarFrame} />
+        )}
         {profile.avatar ? (
           <Image source={{ uri: profile.avatar }} style={styles.avatar} />
         ) : (
@@ -92,15 +117,13 @@ export default function ProfileScreen() {
       <Text style={styles.displayName}>{profile.displayName}</Text>
       <Text style={styles.username}>@{profile.username}</Text>
 
-      <View style={styles.metaRow}>
-        <View style={styles.metaChip}>
-          <BrandAsset assetKey="icons.profile.level" size={16} />
-          <Text style={styles.metaChipText}>Level {profile.level}</Text>
+      <View style={styles.levelBar}>
+        <BrandAsset assetKey="badges.level-star" size={18} />
+        <Text style={styles.levelBarText}>Level {profile.level}</Text>
+        <View style={styles.levelTrack}>
+          <View style={[styles.levelFill, { width: `${Math.min(100, (profile.stats.gamesPlayed || 0) % 100)}%` }]} />
         </View>
-        <View style={styles.metaChip}>
-          <BrandAsset assetKey="frame.vip.badge" size={16} />
-          <Text style={styles.metaChipText}>VIP</Text>
-        </View>
+        <Text style={styles.levelNext}>{profile.xp ?? 0} XP</Text>
       </View>
 
       {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
@@ -131,6 +154,22 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       )}
 
+      <View style={styles.centerGrid}>
+        {CENTER_TILES.map((tile) => (
+          <TouchableOpacity
+            key={tile.route}
+            style={styles.centerTile}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate(tile.route)}
+          >
+            <View style={styles.centerIcon}>
+              <BrandAsset assetKey={tile.icon} size={26} />
+            </View>
+            <Text style={styles.centerLabel}>{tile.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <Text style={styles.sectionTitle}>Posts</Text>
     </View>
   );
@@ -150,6 +189,22 @@ export default function ProfileScreen() {
               detail={isOwnProfile ? 'Share your moments with the community.' : undefined}
             />
           }
+          ListFooterComponent={
+            <View style={styles.inviteCard}>
+              <Image source={imageFor('invite.banner')} style={styles.inviteBanner} resizeMode="cover" />
+              <View style={styles.inviteBody}>
+                <Text style={styles.inviteTitle}>Invite friends &amp; earn rewards</Text>
+                <Image source={imageFor('invite.code')} style={styles.inviteCode} resizeMode="contain" />
+                <View style={styles.inviteSocials}>
+                  {['invite.link', 'invite.wp', 'invite.fb', 'invite.insta', 'invite.x'].map((k) => (
+                    <View key={k} style={styles.inviteSocial}>
+                      <BrandAsset assetKey={k} size={22} />
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+          }
           renderItem={({ item }: { item: Post }) => <PostCard post={item} />}
         />
       </SafeAreaView>
@@ -166,7 +221,76 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   avatarWrap: { position: 'relative', alignItems: 'center', marginBottom: spacing.md },
-  avatarFrame: { position: 'absolute', top: -4 },
+  avatarFrame: { position: 'absolute', top: -8, width: 132, height: 132 },
+  levelBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    width: '100%',
+    backgroundColor: colors.glass,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  levelBarText: { fontSize: 13, fontWeight: '800', color: colors.goldSoft },
+  levelTrack: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.surfaceLight,
+    overflow: 'hidden',
+  },
+  levelFill: { height: '100%', borderRadius: 3, backgroundColor: colors.gold },
+  levelNext: { fontSize: 11, color: colors.textMuted },
+
+  centerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+    marginBottom: spacing.xl,
+    width: '100%',
+  },
+  centerTile: { width: '30%', alignItems: 'center', gap: spacing.sm },
+  centerIcon: {
+    width: 58,
+    height: 58,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.glass,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+  },
+  centerLabel: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+
+  inviteCard: {
+    marginHorizontal: spacing.xl,
+    marginTop: spacing.xl,
+    backgroundColor: colors.glass,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
+  },
+  inviteBanner: { width: '100%', height: 150 },
+  inviteBody: { padding: spacing.lg, gap: spacing.md, alignItems: 'center' },
+  inviteTitle: { fontSize: 17, fontWeight: '800', color: colors.goldSoft },
+  inviteRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  inviteCode: { width: 120, height: 150, resizeMode: 'contain' },
+  inviteSocials: { flexDirection: 'row', gap: spacing.md },
+  inviteSocial: {
+    width: 40,
+    height: 40,
+    backgroundColor: colors.glassStrong,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   avatar: { width: 100, height: 100, borderRadius: 50 },
   avatarPlaceholder: {
     width: 100,

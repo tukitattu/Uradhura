@@ -46,6 +46,24 @@ export default function PartyScreen() {
           </View>
         </View>
 
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Room tools</Text>
+          <View style={styles.toolsRow}>
+            <View style={styles.tool}>
+              <BrandAsset assetKey="icons.party.menu-games" size={46} />
+              <Text style={styles.toolLabel}>Games</Text>
+            </View>
+            <View style={styles.tool}>
+              <BrandAsset assetKey="icons.party.menu-luck" size={46} />
+              <Text style={styles.toolLabel}>Luck bag</Text>
+            </View>
+            <View style={styles.tool}>
+              <BrandAsset assetKey="icons.audio-seat.host" size={46} />
+              <Text style={styles.toolLabel}>Seat</Text>
+            </View>
+          </View>
+        </View>
+
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <BrandAsset assetKey="icons.audio-seat.host" size={22} />
@@ -114,6 +132,22 @@ const styles = StyleSheet.create({
     backgroundColor: colors.glass,
   },
   seatLabel: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
+  toolsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  tool: {
+    flex: 1,
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.glass,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.lg,
+  },
+  toolLabel: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
   card: {
     backgroundColor: colors.glass,
     borderColor: colors.border,

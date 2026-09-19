@@ -3,6 +3,7 @@ import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { useAssets } from './AssetProvider';
 import { resolveAsset } from './registry';
+import { imageFor } from './uraliveImages';
 
 interface BrandAssetProps {
   /** Registry key, e.g. 'icons.navigation.home' or 'logo.uradhura-emblem'. */
@@ -14,9 +15,15 @@ interface BrandAssetProps {
 
 /**
  * Resolves a branded asset with fallback priority
- * (remote override -> bundled SVG), mirroring the registry.
+ * (bundled real artwork -> remote override -> bundled SVG), mirroring the
+ * registry but favouring the raster assets extracted from the Uralive build.
  */
 export function BrandAsset({ assetKey, size = 24, style }: BrandAssetProps) {
+  const bundled = imageFor(assetKey);
+  if (bundled) {
+    return <Image source={bundled} style={[{ width: size, height: size }, style]} resizeMode="contain" />;
+  }
+
   const { manifest } = useAssets();
   const resolved = resolveAsset(manifest, assetKey);
 
