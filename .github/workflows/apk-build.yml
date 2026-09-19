@@ -6,8 +6,7 @@
 # cloud account needed). The signed APK is uploaded as an artifact
 # and attached to a GitHub Release for direct download.
 #
-# API base URL defaults to the TEMPORARY production domain
-# bgwingbangkadesh.com for this build only — override via the
+# API base URL defaults to localhost for this build only — override via the
 # api_url input on workflow_dispatch.
 #
 # Required repo secrets:
@@ -24,7 +23,7 @@ on:
       api_url:
         description: 'API + Socket.IO base URL baked into the APK (temporary for this build)'
         required: false
-        default: 'http://bgwingbangkadesh.com/api/v1'
+        default: 'http://localhost:4002/api/v1'
 
 env:
   NODE_VERSION: '20'
