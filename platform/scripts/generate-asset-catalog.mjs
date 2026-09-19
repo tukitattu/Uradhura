@@ -9,7 +9,7 @@
 //
 // Everything here is ORIGINAL design — deep navy / black / electric
 // blue / violet / cyan with premium gradients, glass surfaces and a
-// soft glow. Nothing is copied from Dear Live or any other product.
+// soft glow. Nothing is copied from any other product.
 // The registry accepts webp/avif raster uploads; SVG stays the
 // preferred vector format for icons and glass backgrounds.
 // ============================================================
@@ -123,7 +123,7 @@ const PROFILE_ICONS = [
 // + audio-room menu + reactions — all original URADHURA artwork
 // ------------------------------------------------------------
 const EXTRA_ICONS = [
-  // audio room menu (Dear Live-inspired placement, original art)
+  // audio room menu (original art, inspired placement)
   { key: 'icons.audio-room-menu.games', name: 'Audio Room: Games', target: 'room', b: () => base({ body: `<rect x="3.6" y="5.4" width="16.8" height="13.2" rx="3.6" stroke="${C.white}" stroke-width="1.5" fill="none"/><path d="M9 5.4 7.4 10h9.2L15 5.4" stroke="${C.white}" stroke-width="1.4" stroke-linecap="round" fill="none"/><circle cx="9.4" cy="13.5" r="1.1" fill="url(#ug-main)"/><circle cx="12" cy="15.2" r="1.1" fill="url(#ug-violet)"/><circle cx="14.6" cy="13.5" r="1.1" fill="url(#ug-rose)"/>` }) },
   { key: 'icons.audio-room-menu.luck-bag', name: 'Audio Room: Luck Bag', target: 'room', b: () => base({ body: `<path d="M5 11h14l-1.1 8.4a1.7 1.7 0 0 1-1.7 1.6H7.8a1.7 1.7 0 0 1-1.7-1.6L5 11Zm1.5-2.2A2.3 2.3 0 0 1 8.8 6.5L12 8l3.2-1.5c1.9.1 2.6 2.6.8 4.1M9 14l3 1.8 3-1.8" stroke="${C.white}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="12" cy="15.8" r="3.4" fill="url(#ug-gold)" opacity="0.35"/>` }) },
   // live room action bar

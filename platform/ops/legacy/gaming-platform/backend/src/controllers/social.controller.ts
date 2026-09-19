@@ -22,7 +22,7 @@ export async function getSocialHome(_req: Request, res: Response): Promise<void>
     rooms: games.map((game, index) => ({
       id: game.id,
       title: `${game.name} lounge`,
-      host: players[index % Math.max(players.length, 1)]?.username || 'Dear Live host',
+      host: players[index % Math.max(players.length, 1)]?.username || 'Ura Live host',
       category: index % 2 === 0 ? 'Live game' : 'Party room',
       viewers: 120 + index * 47,
       cover: index % 2 === 0 ? '/assets/bg/room_bg.png' : '/assets/bg/reward_bg.png',
@@ -31,7 +31,7 @@ export async function getSocialHome(_req: Request, res: Response): Promise<void>
       id: player.id,
       username: player.username,
       caption: ['Good vibes only', 'Tonight is a lucky night', 'Come join the room', 'New friends, new moments'][index],
-      image: '/assets/logo/dearlive-poster.png',
+      image: '/assets/logo/ura-logo.jpg',
     })),
     ranking: players.slice(0, 3).map((player, index) => ({
       id: player.id,

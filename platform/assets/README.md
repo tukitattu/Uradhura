@@ -3,7 +3,7 @@
 Original artwork for the Uradhura platform — **generated, not hand-copied**:
 everything in this tree is derived from the brand palette in
 `platform/scripts/generate-asset-catalog.mjs`. Nothing is imported from
-Dear Live or any other third-party product.
+any third-party product.
 
 ## Regenerate
 
