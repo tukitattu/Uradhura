@@ -17,6 +17,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { GameEngineService } from './game-engine.service';
 import { SeedService } from './seed.service';
 import { WalletIntegrationService } from './wallet-integration.service';
+import { GamesService } from './games.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PlayerAuthGuard } from '../auth/guards/player-auth.guard';
 import { CurrentPlayer, CurrentPlayerData } from '../auth/decorators/current-player.decorator';
@@ -31,8 +32,24 @@ export class PlayerGamesController {
     private readonly engine: GameEngineService,
     private readonly seedService: SeedService,
     private readonly walletService: WalletIntegrationService,
+    private readonly gamesService: GamesService,
     private readonly prisma: PrismaService,
   ) {}
+
+  @Get('catalog')
+  @Public()
+  @ApiOperation({ summary: 'Player-facing game catalog (public)' })
+  async catalog() {
+    const games = await this.gamesService.findAll();
+    return { data: games };
+  }
+
+  @Get('catalog/:id')
+  @Public()
+  @ApiOperation({ summary: 'Player-facing game detail (public)' })
+  async catalogOne(@Param('id', ParseUUIDPipe) id: string) {
+    return { data: await this.gamesService.findOne(id) };
+  }
 
   @Get(':id/current-round')
   @Public()

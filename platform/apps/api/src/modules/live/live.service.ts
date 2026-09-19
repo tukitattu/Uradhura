@@ -135,6 +135,18 @@ export class LiveService {
     };
   }
 
+  async getRoom(roomId: string) {
+    const room = await this.prisma.liveRoom.findUnique({
+      where: { id: roomId },
+      include: {
+        host: { select: HOST_SELECT },
+        _count: { select: { members: { where: { leftAt: null } } } },
+      },
+    });
+    if (!room) throw new NotFoundException('Room not found');
+    return room;
+  }
+
   async joinRoom(playerId: string, roomId: string) {
     const room = await this.prisma.liveRoom.findUnique({ where: { id: roomId } });
     if (!room) throw new NotFoundException('Room not found');

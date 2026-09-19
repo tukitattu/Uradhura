@@ -34,8 +34,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     try {
-      const { data } = await api.get<{ data: Player }>('/auth/me');
-      setState((prev) => ({ ...prev, user: data.data, isAuthenticated: true }));
+      const { data } = await api.get<Player>('/auth/player/me');
+      setState((prev) => ({ ...prev, user: data, isAuthenticated: true }));
     } catch {
       setState((prev) => ({ ...prev, user: null, isAuthenticated: false }));
     }
@@ -53,21 +53,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshUser]);
 
   const login = async (email: string, password: string) => {
-    const { data } = await api.post<{ data: { player: Player; accessToken: string; refreshToken: string } }>(
-      '/auth/login',
-      { email, password }
+    const { data } = await api.post<{ user: Player; accessToken: string; refreshToken: string }>(
+      '/auth/player/login',
+      { identifier: email, password }
     );
-    await storage.setTokens(data.data.accessToken, data.data.refreshToken);
-    setState({ user: data.data.player, isAuthenticated: true, isLoading: false });
+    await storage.setTokens(data.accessToken, data.refreshToken);
+    setState({ user: data.user, isAuthenticated: true, isLoading: false });
   };
 
   const register = async (registerData: RegisterData) => {
-    const { data } = await api.post<{ data: { player: Player; accessToken: string; refreshToken: string } }>(
-      '/auth/register',
+    const { data } = await api.post<{ user: Player; accessToken: string; refreshToken: string }>(
+      '/auth/player/register',
       registerData
     );
-    await storage.setTokens(data.data.accessToken, data.data.refreshToken);
-    setState({ user: data.data.player, isAuthenticated: true, isLoading: false });
+    await storage.setTokens(data.accessToken, data.refreshToken);
+    setState({ user: data.user, isAuthenticated: true, isLoading: false });
   };
 
   const logout = async () => {

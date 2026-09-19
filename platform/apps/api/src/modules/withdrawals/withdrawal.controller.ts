@@ -3,15 +3,15 @@
 // Rules enforced server-side; this surface is read/reflect only.
 // ============================================================
 
-import { Controller, Get, Post, Body, Param, Query, UseGuards, Request, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { WithdrawalService } from './withdrawal.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { PlayerAuthGuard } from '../auth/guards/player-auth.guard';
+import { CurrentPlayer, CurrentPlayerData } from '../auth/decorators/current-player.decorator';
 
 @ApiTags('Withdrawals')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(PlayerAuthGuard)
 @Controller('withdrawals')
 export class WithdrawalController {
   constructor(private readonly withdrawals: WithdrawalService) {}
@@ -19,16 +19,25 @@ export class WithdrawalController {
   @Get('status')
   @ApiOperation({ summary: 'Your withdrawal eligibility: rate, monthly remaining, cooldown, methods' })
   @ApiResponse({ status: 200, description: 'Eligibility returned' })
-  async status(@Request() req: any) {
-    return this.withdrawals.evaluateForPlayer(req.user.sub);
+  async status(@CurrentPlayer() player: CurrentPlayerData) {
+    return this.withdrawals.evaluateForPlayer(player.sub);
   }
 
   @Get('me')
   @ApiOperation({ summary: 'Your withdrawal requests' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  async my(@Request() req: any, @Query('page') page?: number, @Query('limit') limit?: number) {
-    return this.withdrawals.myRequests(req.user.sub, page || 1, limit || 20);
+  async my(@CurrentPlayer() player: CurrentPlayerData, @Query('page') page?: number, @Query('limit') limit?: number) {
+    const result = await this.withdrawals.myRequests(player.sub, page || 1, limit || 20);
+    return {
+      data: result.rows.map((r) => ({
+        id: r.id,
+        amount: String(r.amountCoins),
+        status: r.status,
+        createdAt: r.createdAt.toISOString(),
+      })),
+      meta: { total: result.total, page: result.page, limit: result.limit },
+    };
   }
 
   @Post('request')
@@ -47,14 +56,14 @@ export class WithdrawalController {
     },
   })
   @ApiResponse({ status: 201, description: 'Withdrawal accepted' })
-  async request(@Request() req: any, @Body() body: { amount: number; methodCode: string; accountHandle: string; accountName?: string; idempotencyKey?: string }) {
-    return this.withdrawals.request(req.user.sub, body);
+  async request(@CurrentPlayer() player: CurrentPlayerData, @Body() body: { amount: number; methodCode: string; accountHandle: string; accountName?: string; idempotencyKey?: string }) {
+    return this.withdrawals.request(player.sub, body);
   }
 
   @Post(':id/cancel')
   @ApiOperation({ summary: 'Cancel a pending withdrawal (funds returned)' })
   @ApiParam({ name: 'id', description: 'Withdrawal request UUID' })
-  async cancel(@Request() req: any, @Param('id', ParseUUIDPipe) id: string) {
-    return this.withdrawals.cancel(req.user.sub, id);
+  async cancel(@CurrentPlayer() player: CurrentPlayerData, @Param('id', ParseUUIDPipe) id: string) {
+    return this.withdrawals.cancel(player.sub, id);
   }
 }

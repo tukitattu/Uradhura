@@ -6,6 +6,7 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreatePlayerDto, UpdatePlayerDto } from './dto';
+import { toPlayerDto, toPlayerLite } from './player.mapper';
 
 @Injectable()
 export class PlayersService {
@@ -166,6 +167,76 @@ export class PlayersService {
       },
       createdAt: player.createdAt,
       lastLoginAt: player.lastLoginAt,
+    };
+  }
+
+  async getPlayerProfile(viewerId: string, targetId: string) {
+    const player = await this.prisma.player.findUnique({
+      where: { id: targetId },
+      include: {
+        wallet: true,
+        level: true,
+        _count: {
+          select: {
+            bets: true,
+            posts: true,
+            followers: true,
+            following: true,
+          },
+        },
+      },
+    });
+    if (!player) throw new NotFoundException('Player not found');
+
+    const [isFollowing, recentPosts] = await Promise.all([
+      this.prisma.followRelation.findUnique({
+        where: { followerId_followingId: { followerId: viewerId, followingId: targetId } },
+      }),
+      this.prisma.post.findMany({
+        where: { authorId: targetId, isDeleted: false },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        include: {
+          author: { select: { id: true, username: true, displayName: true, avatar: true } },
+          _count: { select: { likes: true, comments: true } },
+        },
+      }),
+    ]);
+
+    const [wins, payoutAgg, likedRows] = await Promise.all([
+      this.prisma.gameBet.count({ where: { playerId: targetId, status: 'won' } }),
+      this.prisma.gameBet.aggregate({
+        where: { playerId: targetId, status: 'won' },
+        _sum: { payout: true },
+      }),
+      this.prisma.postLike.findMany({
+        where: { postId: { in: recentPosts.map((p) => p.id) }, playerId: viewerId },
+        select: { postId: true },
+      }),
+    ]);
+    const likedSet = new Set(likedRows.map((l) => l.postId));
+
+    return {
+      ...toPlayerDto(player),
+      isFollowing: !!isFollowing,
+      recentPosts: recentPosts.map((p) => ({
+        id: p.id,
+        playerId: p.authorId,
+        player: toPlayerLite(p.author),
+        content: p.content ?? '',
+        images: [p.imageUrl].filter((v): v is string => !!v),
+        likesCount: p._count.likes,
+        commentsCount: p._count.comments,
+        isLiked: likedSet.has(p.id),
+        createdAt: p.createdAt.toISOString(),
+      })),
+      stats: {
+        gamesPlayed: player._count.bets,
+        gamesWon: wins,
+        totalWinnings: Number(payoutAgg._sum.payout ?? 0),
+        currentStreak: 0,
+        bestStreak: 0,
+      },
     };
   }
 

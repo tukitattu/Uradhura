@@ -148,6 +148,74 @@ export class EconomyService {
     return { success: true, coinsAdded: result.transaction.amount, order: result.updatedOrder };
   }
 
+  async purchaseAndCredit(orderId: string, initiatorId: string): Promise<{ success: boolean; added: number; order: any }> {
+    const idempotencyKey = `package-purchase-${orderId}`;
+    const result = await this.prisma.$transaction(async (tx) => {
+      const order = await tx.paymentOrder.findUnique({
+        where: { id: orderId },
+      });
+      if (!order) throw new NotFoundException('Order not found');
+      if (order.status !== 'pending') throw new BadRequestException('Order already processed');
+
+      const currency = order.packageType === 'diamond' ? 'diamonds' : 'coins';
+      const refType = order.packageType === 'diamond' ? 'diamond_purchase' : 'coin_purchase';
+
+      const { transaction } = await this.ledger.credit(
+        order.playerId,
+        order.tokenAmount,
+        refType,
+        orderId,
+        `Package purchase`,
+        idempotencyKey,
+        { tx, currency, createdBy: initiatorId, type: refType },
+      );
+
+      const updatedOrder = await tx.paymentOrder.update({
+        where: { id: orderId },
+        data: { status: 'completed', creditedAt: new Date() },
+      });
+
+      return { transaction, updatedOrder };
+    });
+
+    return { success: true, added: Number(result.transaction.amount), order: result.updatedOrder };
+  }
+
+  async initiateStorePurchase(playerId: string, type: 'coins' | 'diamonds', packageId: string) {
+    if (type === 'coins') {
+      const pkg = await this.prisma.coinPackage.findUnique({ where: { id: packageId } });
+      if (!pkg || !pkg.isActive) throw new NotFoundException('Package not found or inactive');
+      return this.prisma.paymentOrder.create({
+        data: {
+          playerId,
+          packageId,
+          packageType: 'coin',
+          provider: 'store',
+          amountCents: Math.round(Number(pkg.priceUsd) * 100),
+          tokenAmount: pkg.baseCoins + pkg.bonusCoins,
+          status: 'pending',
+        },
+      });
+    }
+
+    const pkg = await this.prisma.diamondPackage.findUnique({ where: { id: packageId } });
+    if (!pkg || !pkg.isActive) throw new NotFoundException('Package not found or inactive');
+    return this.prisma.paymentOrder.create({
+      data: {
+        playerId,
+        // packageId column is FK-bound to coin_packages only, so a diamond
+        // order stores its id in metadata to avoid a dangling FK.
+        packageId: null,
+        packageType: 'diamond',
+        provider: 'store',
+        amountCents: Math.round(Number(pkg.priceUsd) * 100),
+        tokenAmount: pkg.baseDiamonds + pkg.bonusDiamonds,
+        status: 'pending',
+        metadata: JSON.stringify({ packageId }),
+      },
+    });
+  }
+
   // ============================================================
   // DIAMOND PACKAGES
   // ============================================================

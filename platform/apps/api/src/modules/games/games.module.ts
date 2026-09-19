@@ -19,7 +19,7 @@ import { GameDriverRegistry } from './drivers/driver.registry';
 
 @Module({
   imports: [PassportModule.register({ defaultStrategy: 'player-jwt' }), AuditModule],
-  controllers: [GamesController, PlayerGamesController],
+  controllers: [PlayerGamesController, GamesController],
   providers: [
     GamesService,
     GameConfigService,

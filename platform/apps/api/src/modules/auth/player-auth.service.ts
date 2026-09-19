@@ -17,6 +17,7 @@ import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PlayerRegisterDto, PlayerLoginDto } from './dto/player-auth.dto';
+import { toPlayerDto } from '../players/player.mapper';
 
 @Injectable()
 export class PlayerAuthService {
@@ -107,10 +108,17 @@ export class PlayerAuthService {
       include: {
         wallet: { select: { coinBalance: true, diamondBalance: true } },
         level: true,
+        _count: {
+          select: {
+            posts: true,
+            followers: true,
+            following: true,
+          },
+        },
       },
     });
     if (!player) throw new NotFoundException('Player not found');
-    return this.sanitize(player);
+    return toPlayerDto(player);
   }
 
   private async issueTokens(player: { id: string; username: string; email: string | null; avatar: string | null; displayName: string | null }) {
@@ -137,20 +145,9 @@ export class PlayerAuthService {
     });
 
     return {
-      user: {
-        id: player.id,
-        username: player.username,
-        email: player.email,
-        displayName: player.displayName,
-        avatar: player.avatar,
-      },
+      user: await this.getProfile(player.id),
       accessToken,
       refreshToken: refreshTokenValue,
     };
-  }
-
-  private sanitize(player: Record<string, unknown>) {
-    const { passwordHash, ...rest } = player as Record<string, unknown> & { passwordHash?: string };
-    return rest;
   }
 }

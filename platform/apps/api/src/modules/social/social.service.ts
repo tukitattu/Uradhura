@@ -2,8 +2,9 @@
 // SOCIAL SERVICE
 // ============================================================
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { toPlayerLite } from '../players/player.mapper';
 
 @Injectable()
 export class SocialService {
@@ -42,6 +43,47 @@ export class SocialService {
     ]);
 
     return { data: posts, total, page, limit };
+  }
+
+  async getFeedForPlayer(viewerId: string, page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const where = { isDeleted: false };
+    const [posts, total] = await Promise.all([
+      this.prisma.post.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          author: { select: { id: true, username: true, displayName: true, avatar: true } },
+          _count: { select: { likes: true, comments: true } },
+        },
+      }),
+      this.prisma.post.count({ where }),
+    ]);
+
+    const likedRows = await this.prisma.postLike.findMany({
+      where: { postId: { in: posts.map((p) => p.id) }, playerId: viewerId },
+      select: { postId: true },
+    });
+    const likedSet = new Set(likedRows.map((l) => l.postId));
+
+    return {
+      data: posts.map((p) => ({
+        id: p.id,
+        playerId: p.authorId,
+        player: toPlayerLite(p.author),
+        content: p.content ?? '',
+        images: [p.imageUrl].filter((v): v is string => !!v),
+        likesCount: p._count.likes,
+        commentsCount: p._count.comments,
+        isLiked: likedSet.has(p.id),
+        createdAt: p.createdAt.toISOString(),
+      })),
+      total,
+      page,
+      limit,
+    };
   }
 
   async likePost(playerId: string, postId: string) {
@@ -87,7 +129,7 @@ export class SocialService {
 
   async follow(followerId: string, followingId: string) {
     if (followerId === followingId) {
-      throw new Error('Cannot follow yourself');
+      throw new BadRequestException('Cannot follow yourself');
     }
 
     const existing = await this.prisma.followRelation.findUnique({
@@ -95,6 +137,9 @@ export class SocialService {
     });
 
     if (existing) {
+      await this.prisma.followRelation.delete({
+        where: { followerId_followingId: { followerId, followingId } },
+      });
       return { following: false };
     }
 

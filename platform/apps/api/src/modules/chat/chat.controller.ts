@@ -25,6 +25,36 @@ import {
 import { ChatService } from './chat.service';
 import { PlayerAuthGuard } from '../auth/guards/player-auth.guard';
 import { CurrentPlayer, CurrentPlayerData } from '../auth/decorators/current-player.decorator';
+import { toPlayerLite } from '../players/player.mapper';
+
+function toMessageDto(message: any) {
+  const metadata = (() => {
+    try {
+      return message.metadata ? JSON.parse(message.metadata) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const type =
+    message.type === 'dm' || message.type === 'chat'
+      ? 'text'
+      : message.type === 'gift'
+        ? 'gift'
+        : message.type === 'image'
+          ? 'image'
+          : 'system';
+  return {
+    id: message.id,
+    conversationId: message.receiverId || message.roomId,
+    senderId: message.senderId,
+    sender: message.sender ? toPlayerLite({ id: message.sender.id, username: message.sender.username, displayName: message.sender.displayName, avatar: message.sender.avatar }) : undefined,
+    content: message.content ?? '',
+    type,
+    metadata,
+    isRead: !!(metadata && metadata.read === true),
+    createdAt: message.createdAt.toISOString(),
+  };
+}
 
 @ApiTags('Chat')
 @ApiBearerAuth()
@@ -120,7 +150,49 @@ export class ChatController {
   @ApiOperation({ summary: 'List DM conversations with last message and unread count' })
   @ApiResponse({ status: 200, description: 'Conversations returned sorted by last message' })
   async getConversations(@CurrentPlayer() player: CurrentPlayerData) {
-    return this.chatService.getConversations(player.sub);
+    const conversations = await this.chatService.getConversations(player.sub);
+    return {
+      data: conversations.map((c) => ({
+        id: c.otherPlayer.id,
+        participants: [toPlayerLite({ id: c.otherPlayer.id, username: c.otherPlayer.username, displayName: c.otherPlayer.displayName, avatar: c.otherPlayer.avatar }), toPlayerLite({ id: player.sub, username: player.username })],
+        lastMessage: {
+          id: '',
+          conversationId: c.otherPlayer.id,
+          senderId: c.otherPlayer.id,
+          sender: toPlayerLite({ id: c.otherPlayer.id, username: c.otherPlayer.username, displayName: c.otherPlayer.displayName, avatar: c.otherPlayer.avatar }),
+          content: c.lastMessage.content,
+          type: 'text',
+          metadata: null,
+          isRead: true,
+          createdAt: c.lastMessage.createdAt.toISOString(),
+        },
+        unreadCount: c.unreadCount,
+        updatedAt: c.lastMessage.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  @Get('conversations/:conversationId/messages')
+  @ApiOperation({ summary: 'Get DM messages for a conversation' })
+  @ApiParam({ name: 'conversationId', description: 'Other player UUID (conversation id)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'Direct messages returned' })
+  @ApiResponse({ status: 404, description: 'Player not found' })
+  async getConversationMessages(
+    @CurrentPlayer() player: CurrentPlayerData,
+    @Param('conversationId', ParseUUIDPipe) conversationId: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    const result = await this.chatService.getDirectMessages(player.sub, conversationId, page || 1, limit || 50);
+    return {
+      data: result.data.map((m) => ({
+        ...toMessageDto(m),
+        conversationId,
+      })),
+      meta: result.meta,
+    };
   }
 
   @Get('search')

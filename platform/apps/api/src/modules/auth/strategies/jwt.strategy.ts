@@ -2,7 +2,7 @@
 // JWT STRATEGY
 // ============================================================
 
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -23,6 +23,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
+    if (payload.type === 'player') {
+      return false;
+    }
+
     const user = await this.prisma.adminUser.findUnique({
       where: { id: payload.sub },
       include: {
@@ -43,7 +47,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
 
     if (!user || !user.isActive) {
-      throw new UnauthorizedException('User not found or inactive');
+      return false;
     }
 
     const roles = user.roles.map((ur) => ur.role.name);

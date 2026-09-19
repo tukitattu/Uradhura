@@ -3,7 +3,7 @@
 // Validates player access tokens (payload.type === 'player').
 // ============================================================
 
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -31,7 +31,7 @@ export class PlayerJwtStrategy extends PassportStrategy(Strategy, 'player-jwt') 
 
   async validate(payload: PlayerJwtPayload) {
     if (payload.type !== 'player') {
-      throw new UnauthorizedException('Not a player token');
+      return false;
     }
 
     const player = await this.prisma.player.findUnique({
@@ -40,7 +40,7 @@ export class PlayerJwtStrategy extends PassportStrategy(Strategy, 'player-jwt') 
     });
 
     if (!player || !player.isActive || player.isBanned) {
-      throw new UnauthorizedException('Player not found or inactive');
+      return false;
     }
 
     return {

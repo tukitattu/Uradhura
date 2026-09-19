@@ -29,11 +29,11 @@ import { GameEngineService } from '../games/game-engine.service';
 import { CreatePlayerDto, UpdatePlayerDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { JwtOrPlayerAuthGuard } from '../auth/guards/jwt-or-player-auth.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('Players')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('players')
 export class PlayersController {
   constructor(
@@ -47,6 +47,7 @@ export class PlayersController {
   // ============================================================
 
   @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin', 'admin', 'game_operator', 'finance', 'viewer')
   @ApiOperation({ summary: 'List all players (paginated)' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default 1)' })
@@ -62,6 +63,7 @@ export class PlayersController {
   }
 
   @Get('stats')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin', 'admin')
   @ApiOperation({ summary: 'Get player statistics (admin)' })
   @ApiResponse({ status: 200, description: 'Player stats returned' })
@@ -70,16 +72,20 @@ export class PlayersController {
   }
 
   @Get(':id')
-  @Roles('super_admin', 'admin', 'game_operator', 'finance', 'viewer')
-  @ApiOperation({ summary: 'Get player profile by ID' })
+  @UseGuards(JwtOrPlayerAuthGuard)
+  @ApiOperation({ summary: 'Get player profile (admin or player view)' })
   @ApiParam({ name: 'id', description: 'Player UUID' })
   @ApiResponse({ status: 200, description: 'Player profile returned' })
   @ApiResponse({ status: 404, description: 'Player not found' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.playersService.findOne(id);
+  async findOne(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
+    if (req.user?.type === 'player') {
+      return { data: await this.playersService.getPlayerProfile(req.user.sub, id) };
+    }
+    return { data: await this.playersService.findOne(id) };
   }
 
   @Put(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin', 'admin')
   @ApiOperation({ summary: 'Update player profile' })
   @ApiParam({ name: 'id', description: 'Player UUID' })
@@ -99,6 +105,7 @@ export class PlayersController {
   // ============================================================
 
   @Post(':id/ban')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin', 'admin', 'moderator')
   @ApiOperation({ summary: 'Ban a player (moderator+)' })
   @ApiParam({ name: 'id', description: 'Player UUID' })
@@ -113,6 +120,7 @@ export class PlayersController {
   }
 
   @Post(':id/unban')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin', 'admin', 'moderator')
   @ApiOperation({ summary: 'Unban a player (moderator+)' })
   @ApiParam({ name: 'id', description: 'Player UUID' })
@@ -127,6 +135,7 @@ export class PlayersController {
   // ============================================================
 
   @Get(':id/wallet')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin', 'admin', 'finance')
   @ApiOperation({ summary: 'Get player wallet balance' })
   @ApiParam({ name: 'id', description: 'Player UUID' })
@@ -137,6 +146,7 @@ export class PlayersController {
   }
 
   @Get(':id/bets')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin', 'admin', 'game_operator', 'finance')
   @ApiOperation({ summary: 'Get player bet history' })
   @ApiParam({ name: 'id', description: 'Player UUID' })
