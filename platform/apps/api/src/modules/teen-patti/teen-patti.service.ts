@@ -17,7 +17,13 @@ export const TEEN_PATTI_EVENTS = {
   result: 'teen_patti.result',
 } as const;
 
-const TICK_MS = 2000;
+// Scheduler tuning. The old loop re-scanned every open/playing table in the DB
+// every 2s — O(tables) queries per tick. That collapses at 100k concurrent
+// players (tens of thousands of tables). We now keep an in-memory set of
+// *armed* tables and only touch the ones whose turn actually needs advancing.
+const SCHEDULER_INTERVAL_MS = 1000; // how often we check the arm map (pure CPU, no DB)
+const TABLE_TICK_MS = 2000; // cadence for a table with a hand mid-betting (timeouts + bots)
+const ACTION_ARM_MS = 1000; // kick an action quickly after a human acts / a hand deals
 
 interface TableRuntime {
   game: TeenPattiGame | null;
@@ -26,6 +32,9 @@ interface TableRuntime {
   lastActionAt: Map<number, number>;
   chipsAtDeal: Map<number, number>;
   pendingStands: Map<number, { seatId: string; playerId: string }>;
+  seatNames: Map<number, string>;
+  tableSnap: TeenPattiTable | null;
+  lastActivityAt: number;
 }
 
 export interface TableStateView {
@@ -56,6 +65,8 @@ export class TeenPattiService implements OnModuleInit, OnModuleDestroy {
   private readonly runtimes = new Map<string, TableRuntime>();
   private timer: NodeJS.Timeout | null = null;
   private readonly lockChain = new Map<string, Promise<unknown>>();
+  // tableId → epoch ms when this table next needs a tick. Purely in-memory.
+  private readonly scheduler = new Map<string, number>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -67,11 +78,63 @@ export class TeenPattiService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit(): void {
     void this.rehydrateAll();
-    this.timer = setInterval(() => void this.tickAll().catch((e) => this.logger.error('tickAll failed', e)), TICK_MS);
+    this.timer = setInterval(() => void this.drainScheduler().catch((e) => this.logger.error('scheduler drain failed', e)), SCHEDULER_INTERVAL_MS);
   }
 
   onModuleDestroy(): void {
     if (this.timer) clearInterval(this.timer);
+    this.scheduler.clear();
+  }
+
+  // ----------------------------------------------------------
+  // In-memory table scheduler
+  // A table is "armed" while the game can make progress on its own (a hand is
+  // mid-betting, or a hand chain may still kick off). Arming is cheap and needs
+  // no DB reads; draining iterates only armed entries.
+  // ----------------------------------------------------------
+
+  private armTable(tableId: string, delayMs: number = TABLE_TICK_MS): void {
+    this.scheduler.set(tableId, Date.now() + Math.max(50, delayMs));
+  }
+
+  private disarmTable(tableId: string): void {
+    this.scheduler.delete(tableId);
+  }
+
+  private async drainScheduler(): Promise<void> {
+    if (this.scheduler.size === 0) return;
+    const now = Date.now();
+    const due: string[] = [];
+    for (const [tableId, dueAt] of this.scheduler) {
+      if (dueAt <= now) due.push(tableId);
+    }
+    if (due.length === 0) return;
+    await Promise.all(due.map((tableId) => this.tickTable(tableId)));
+  }
+
+  // Decide whether/for how long a table stays armed. Called on every tick and
+  // after human actions + deals.
+  //
+  // Tables WITHOUT a live hand never need the scheduler: the first deal is
+  // triggered synchronously by sit()/admin/rehydrate, so an idle open table is
+  // disarmed immediately — otherwise we'd churn thousands of idle tables.
+  private scheduleNextTick(tableId: string): void {
+    const rt = this.runtimes.get(tableId);
+    if (!rt) {
+      this.disarmTable(tableId);
+      return;
+    }
+    if (rt.game && rt.game.status === 'betting') {
+      // Hand mid-betting → keep pulsing for human timeouts + bot turns.
+      this.armTable(tableId, TABLE_TICK_MS);
+      return;
+    }
+    if (rt.hand || rt.game) {
+      // Between hands (deal chaining) — stay armed briefly so the chain runs.
+      this.armTable(tableId, TABLE_TICK_MS);
+      return;
+    }
+    this.disarmTable(tableId);
   }
 
   private async runLocked<T>(tableId: string, fn: () => Promise<T>): Promise<T> {
@@ -92,7 +155,17 @@ export class TeenPattiService implements OnModuleInit, OnModuleDestroy {
   private loadRuntime(tableId: string): TableRuntime {
     let rt = this.runtimes.get(tableId);
     if (!rt) {
-      rt = { game: null, hand: null, botSteps: new Map(), lastActionAt: new Map(), chipsAtDeal: new Map(), pendingStands: new Map() };
+      rt = {
+        game: null,
+        hand: null,
+        botSteps: new Map(),
+        lastActionAt: new Map(),
+        chipsAtDeal: new Map(),
+        pendingStands: new Map(),
+        seatNames: new Map(),
+        tableSnap: null,
+        lastActivityAt: Date.now(),
+      };
       this.runtimes.set(tableId, rt);
     }
     return rt;
@@ -378,6 +451,7 @@ export class TeenPattiService implements OnModuleInit, OnModuleDestroy {
 
       // Kick the table into action: refill bots to minPlayers and deal the
       // first hand as soon as the first human is seated (no waiting for a tick).
+      rt.lastActivityAt = Date.now();
       await this.ensureDealt(tableId, rt);
     });
   }
@@ -531,6 +605,7 @@ export class TeenPattiService implements OnModuleInit, OnModuleDestroy {
     await this.persistAndSettle(tableId, rt, cloned, seatNo, kind, amount, settle);
 
     rt.game = cloned;
+    rt.lastActivityAt = Date.now();
     rt.lastActionAt.set(seatNo, Date.now());
     if (cloned.seats.find((s) => s.seatNo === seatNo)?.isBot) {
       rt.botSteps.set(seatNo, (rt.botSteps.get(seatNo) ?? 0) + 1);
@@ -541,6 +616,9 @@ export class TeenPattiService implements OnModuleInit, OnModuleDestroy {
     if (settle) {
       await this.finishHand(tableId, rt, hand, settle);
     } else {
+      // Keep the turn moving promptly: a human action should be followed by a
+      // quick bot/timeout pulse instead of waiting for a global tick.
+      this.armTable(tableId, ACTION_ARM_MS);
       this.emitState(tableId);
     }
 
@@ -690,6 +768,7 @@ export class TeenPattiService implements OnModuleInit, OnModuleDestroy {
     rt.game = null;
     rt.hand = null;
     rt.chipsAtDeal.clear();
+    rt.lastActivityAt = Date.now();
 
     if (rt.pendingStands.size > 0) {
       const seats = await this.prisma.teenPattiSeat.findMany({
@@ -748,6 +827,9 @@ export class TeenPattiService implements OnModuleInit, OnModuleDestroy {
       rt.game = null;
       rt.hand = null;
       rt.chipsAtDeal.clear();
+      rt.lastActivityAt = Date.now();
+      rt.tableSnap = { ...table, status: 'open', handInPlay: false };
+      this.disarmTable(tableId);
       await this.prisma.teenPattiTable.update({
         where: { id: tableId },
         data: { handInPlay: false, status: 'open' },
@@ -765,6 +847,9 @@ export class TeenPattiService implements OnModuleInit, OnModuleDestroy {
       rt.game = null;
       rt.hand = null;
       rt.chipsAtDeal.clear();
+      rt.lastActivityAt = Date.now();
+      rt.tableSnap = { ...table, status: 'open', handInPlay: false };
+      this.disarmTable(tableId);
       await this.prisma.teenPattiTable.update({
         where: { id: tableId },
         data: { handInPlay: false, status: 'open' },
@@ -844,10 +929,22 @@ export class TeenPattiService implements OnModuleInit, OnModuleDestroy {
 
     rt.game = game;
     rt.hand = hand;
+    rt.lastActivityAt = Date.now();
+    rt.seatNames = new Map(readyRows.map((r) => [r.seatNo, r.name]));
+    rt.tableSnap = {
+      ...table,
+      status: 'playing',
+      handInPlay: true,
+      nextHandNo: nonce + 1,
+      dealerSeatNo: dealerSeat.seatNo,
+    };
     if (rt.botSteps.size === 0) {
       for (const r of readyRows) if (r.isBot) rt.botSteps.set(r.seatNo, 0);
     }
     if (game.turnSeatNo !== null) rt.lastActionAt.set(game.turnSeatNo, Date.now());
+
+    // Hand is live → the scheduler must keep ticking it for timeouts + bots.
+    this.armTable(tableId, ACTION_ARM_MS);
 
     this.events.emit(TEEN_PATTI_EVENTS.action, {
       tableId,
@@ -906,56 +1003,58 @@ export class TeenPattiService implements OnModuleInit, OnModuleDestroy {
 
   // ----------------------------------------------------------
   // Tick loop (bots + human timeouts)
+  // Runs only for *armed* tables (see scheduler above) — never a full-table
+  // DB scan. The old tickAll() did O(open tables) queries every 2 s, which is
+  // the primary bottleneck once table counts reach the tens of thousands.
   // ----------------------------------------------------------
-
-  private async tickAll(): Promise<void> {
-    // Tick 'open' tables too: they may be waiting on bot fill + a first deal
-    // (e.g. a human sat down while the process was busy or after a restart).
-    const tables = await this.prisma.teenPattiTable.findMany({
-      where: { status: { in: ['open', 'playing'] } },
-      select: { id: true },
-    });
-    await Promise.all(tables.map((t) => this.tickTable(t.id)));
-  }
 
   async tickTable(tableId: string): Promise<void> {
     await this.runLocked(tableId, async () => {
-      const rt = this.loadRuntime(tableId);
-      await this.ensureDealt(tableId, rt);
-      const game = rt.game;
-      if (!game || game.status !== 'betting' || game.turnSeatNo === null) return;
+      try {
+        const rt = this.loadRuntime(tableId);
+        // No live hand → nothing to advance. First deals run synchronously from
+        // sit()/admin/rehydrate, so skip the DB-heavy ensureDealt path here.
+        if (!rt.hand && !rt.game) return;
+        await this.ensureDealt(tableId, rt);
+        const game = rt.game;
+        if (!game || game.status !== 'betting' || game.turnSeatNo === null) return;
 
-      const seatNo = game.turnSeatNo;
-      const seat = game.seats.find((s) => s.seatNo === seatNo);
-      if (!seat) return;
+        const seatNo = game.turnSeatNo;
+        const seat = game.seats.find((s) => s.seatNo === seatNo);
+        if (!seat) return;
 
-      const available = game.availableActions(seatNo);
-      if (available.length === 0) return;
+        const available = game.availableActions(seatNo);
+        if (available.length === 0) return;
 
-      if (!seat.isBot) {
-        const { value: cfg } = await this.configService.getConfig();
-        const timeoutMs = cfg.actionTimeoutSeconds * 1000;
-        const last = rt.lastActionAt.get(seatNo) ?? Date.now();
-        if (Date.now() - last < timeoutMs) return;
-        await this.act(tableId, rt, seatNo, 'fold');
-        return;
-      }
+        if (!seat.isBot) {
+          const { value: cfg } = await this.configService.getConfig();
+          const timeoutMs = cfg.actionTimeoutSeconds * 1000;
+          const last = rt.lastActionAt.get(seatNo) ?? Date.now();
+          if (Date.now() - last < timeoutMs) return;
+          await this.act(tableId, rt, seatNo, 'fold');
+          return;
+        }
 
-      const step = rt.botSteps.get(seatNo) ?? 0;
-      const hand = rt.hand!;
-      const kind = selectBotAction(
-        { serverSeed: hand.seedServerSeed!, clientSeed: hand.seedClientSeed, nonce: hand.seedNonce },
-        step,
-        { chips: seat.chips, committed: seat.committed, isSeen: seat.isSeen, handRank: seat.isSeen ? evaluateHand(seat.cards, { rankingOrder: game.config.rankingOrder }).rank : 0 },
-        { pot: game.pot, stake: game.stake, stakeLevel: game.stakeLevel, chaalCap: game.config.chaalCap, countInHand: game.countInHand() },
-        available,
-      );
+        const step = rt.botSteps.get(seatNo) ?? 0;
+        const hand = rt.hand!;
+        const kind = selectBotAction(
+          { serverSeed: hand.seedServerSeed!, clientSeed: hand.seedClientSeed, nonce: hand.seedNonce },
+          step,
+          { chips: seat.chips, committed: seat.committed, isSeen: seat.isSeen, handRank: seat.isSeen ? evaluateHand(seat.cards, { rankingOrder: game.config.rankingOrder }).rank : 0 },
+          { pot: game.pot, stake: game.stake, stakeLevel: game.stakeLevel, chaalCap: game.config.chaalCap, countInHand: game.countInHand() },
+          available,
+        );
 
-      const before = rt.botSteps.get(seatNo) ?? 0;
-      const result = await this.act(tableId, rt, seatNo, kind);
-      if (!result.ok) {
-        this.logger.warn(`Bot action rejected on ${tableId}: ${kind}`);
-        rt.botSteps.set(seatNo, before);
+        const before = rt.botSteps.get(seatNo) ?? 0;
+        const result = await this.act(tableId, rt, seatNo, kind);
+        if (!result.ok) {
+          this.logger.warn(`Bot action rejected on ${tableId}: ${kind}`);
+          rt.botSteps.set(seatNo, before);
+        }
+      } finally {
+        // Whatever happened — including a hand that settled and chained into a
+        // new deal — decide whether (and for how long) this table stays armed.
+        this.scheduleNextTick(tableId);
       }
     });
   }
@@ -989,8 +1088,15 @@ export class TeenPattiService implements OnModuleInit, OnModuleDestroy {
       where: { status: { in: ['open', 'playing'] } },
       select: { id: true },
     });
+    // Boot restore must force-deal open tables (steady-state ticks skip tables
+    // with no live hand), then let the scheduler take over from there.
     for (const t of tables) {
-      await this.tickTable(t.id);
+      await this.runLocked(t.id, async () => {
+        const rt = this.loadRuntime(t.id);
+        rt.lastActivityAt = Date.now();
+        await this.ensureDealt(t.id, rt);
+        this.scheduleNextTick(t.id);
+      });
     }
   }
 
@@ -1057,6 +1163,8 @@ export class TeenPattiService implements OnModuleInit, OnModuleDestroy {
         entityId: tableId,
         metadata: { cashedOutSeats: seats.length },
       });
+
+      this.disarmTable(tableId);
 
       return { ok: true };
     });
@@ -1194,8 +1302,60 @@ export class TeenPattiService implements OnModuleInit, OnModuleDestroy {
   }
 
   private emitState(tableId: string): void {
-    void this.getTable(tableId).then((state) => {
-      if (state) this.events.emit(TEEN_PATTI_EVENTS.state, { tableId, state });
-    });
+    // Broadcast straight from the authoritative in-memory runtime. The old
+    // path re-queried the DB (table + seats) on EVERY action — a read
+    // amplification that doubles DB load at high concurrency. The runtime game
+    // is the same object that was atomically persisted, so the broadcast is a
+    // consistent snapshot of the live hand.
+    const state = this.buildStateView(tableId);
+    if (state) this.events.emit(TEEN_PATTI_EVENTS.state, { tableId, state });
+  }
+
+  private buildStateView(tableId: string): TableStateView | null {
+    const rt = this.runtimes.get(tableId);
+    if (!rt) return null;
+    const game = rt.game;
+    const snap = rt.tableSnap;
+    if (!snap) return null;
+
+    const seats: TableStateView['seats'] = (game?.seats ?? [])
+      .slice()
+      .sort((a, b) => a.seatNo - b.seatNo)
+      .map((s) => ({
+        seatNo: s.seatNo,
+        playerId: this.maskPlayerId(s.playerId, undefined, s.seatNo),
+        isBot: s.isBot,
+        chips: s.chips,
+        isSeen: s.isSeen,
+        committed: s.committed,
+        folded: s.folded,
+        allIn: s.allIn,
+        blindRaised: s.blindRaised,
+        actedInLevel: s.actedInLevel,
+        cardCount: s.isBot ? 0 : 3,
+        name: rt.seatNames.get(s.seatNo) ?? (s.isBot ? 'Bot' : `Player ${s.seatNo}`),
+      }));
+
+    return {
+      table: {
+        id: tableId,
+        tableCode: snap.tableCode,
+        title: snap.title,
+        bootAmount: snap.bootAmount,
+        chaalCap: snap.chaalCap,
+        maxSeats: snap.maxSeats,
+        minPlayers: snap.minPlayers,
+        minBuyIn: snap.minBuyIn,
+        maxBuyIn: snap.maxBuyIn,
+        status: snap.status,
+        handNo: rt.hand ? rt.hand.handNo : Math.max(0, snap.nextHandNo - 1),
+        handInPlay: !!game && game.status === 'betting',
+      },
+      seats,
+      turn: game && game.status === 'betting' ? game.turnSeatNo : null,
+      pot: game ? game.pot : 0,
+      stake: game ? game.stake : snap.bootAmount,
+      handicap: null,
+    };
   }
 }

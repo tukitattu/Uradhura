@@ -126,6 +126,10 @@ class RateLimiter {
 @WebSocketGateway({
   namespace: '/chat',
   cors: { origin: '*' },
+  transports: ['websocket'],
+  pingInterval: 25000,
+  pingTimeout: 30000,
+  maxHttpBufferSize: 1e6,
 })
 export class ChatGateway extends BaseGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()

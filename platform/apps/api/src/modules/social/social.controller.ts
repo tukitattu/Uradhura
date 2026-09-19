@@ -11,7 +11,6 @@ import {
   Param,
   Query,
   UseGuards,
-  Request,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import {
@@ -24,11 +23,12 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { SocialService } from './social.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PlayerAuthGuard } from '../auth/guards/player-auth.guard';
+import { CurrentPlayer, CurrentPlayerData } from '../auth/decorators/current-player.decorator';
 
 @ApiTags('Social')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(PlayerAuthGuard)
 @Controller('social')
 export class SocialController {
   constructor(private readonly socialService: SocialService) {}
@@ -67,10 +67,10 @@ export class SocialController {
   })
   @ApiResponse({ status: 201, description: 'Post created' })
   async createPost(
-    @Request() req: any,
+    @CurrentPlayer() player: CurrentPlayerData,
     @Body() body: { content?: string; imageUrl?: string; videoUrl?: string; type?: string },
   ) {
-    return this.socialService.createPost(req.user.sub, body);
+    return this.socialService.createPost(player.sub, body);
   }
 
   @Get('posts')
@@ -105,10 +105,10 @@ export class SocialController {
   @ApiResponse({ status: 200, description: 'Like toggled' })
   @ApiResponse({ status: 404, description: 'Post not found' })
   async likePost(
-    @Request() req: any,
+    @CurrentPlayer() player: CurrentPlayerData,
     @Param('postId', ParseUUIDPipe) postId: string,
   ) {
-    return this.socialService.likePost(req.user.sub, postId);
+    return this.socialService.likePost(player.sub, postId);
   }
 
   @Post('posts/:postId/comment')
@@ -118,11 +118,11 @@ export class SocialController {
   @ApiResponse({ status: 201, description: 'Comment created' })
   @ApiResponse({ status: 404, description: 'Post not found' })
   async commentOnPost(
-    @Request() req: any,
+    @CurrentPlayer() player: CurrentPlayerData,
     @Param('postId', ParseUUIDPipe) postId: string,
     @Body('content') content: string,
   ) {
-    return this.socialService.commentOnPost(req.user.sub, postId, content);
+    return this.socialService.commentOnPost(player.sub, postId, content);
   }
 
   // ============================================================
@@ -134,10 +134,10 @@ export class SocialController {
   @ApiParam({ name: 'playerId', description: 'Player UUID to follow' })
   @ApiResponse({ status: 200, description: 'Follow toggled' })
   async follow(
-    @Request() req: any,
+    @CurrentPlayer() player: CurrentPlayerData,
     @Param('playerId', ParseUUIDPipe) playerId: string,
   ) {
-    return this.socialService.follow(req.user.sub, playerId);
+    return this.socialService.follow(player.sub, playerId);
   }
 
   @Delete('follow/:playerId')
@@ -145,10 +145,10 @@ export class SocialController {
   @ApiParam({ name: 'playerId', description: 'Player UUID to unfollow' })
   @ApiResponse({ status: 200, description: 'Unfollowed' })
   async unfollow(
-    @Request() req: any,
+    @CurrentPlayer() player: CurrentPlayerData,
     @Param('playerId', ParseUUIDPipe) playerId: string,
   ) {
-    return this.socialService.unfollow(req.user.sub, playerId);
+    return this.socialService.unfollow(player.sub, playerId);
   }
 
   @Get('players/:playerId/followers')
@@ -188,10 +188,10 @@ export class SocialController {
   @ApiParam({ name: 'playerId', description: 'Player UUID to block' })
   @ApiResponse({ status: 200, description: 'Player blocked' })
   async block(
-    @Request() req: any,
+    @CurrentPlayer() player: CurrentPlayerData,
     @Param('playerId', ParseUUIDPipe) playerId: string,
   ) {
-    return this.socialService.block(req.user.sub, playerId);
+    return this.socialService.block(player.sub, playerId);
   }
 
   @Delete('block/:playerId')
@@ -199,9 +199,9 @@ export class SocialController {
   @ApiParam({ name: 'playerId', description: 'Player UUID to unblock' })
   @ApiResponse({ status: 200, description: 'Player unblocked' })
   async unblock(
-    @Request() req: any,
+    @CurrentPlayer() player: CurrentPlayerData,
     @Param('playerId', ParseUUIDPipe) playerId: string,
   ) {
-    return this.socialService.unblock(req.user.sub, playerId);
+    return this.socialService.unblock(player.sub, playerId);
   }
 }

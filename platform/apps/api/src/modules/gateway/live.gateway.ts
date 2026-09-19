@@ -67,6 +67,10 @@ interface LiveRoomState {
 @WebSocketGateway({
   namespace: '/live',
   cors: { origin: '*' },
+  transports: ['websocket'],
+  pingInterval: 25000,
+  pingTimeout: 30000,
+  maxHttpBufferSize: 1e6,
 })
 export class LiveGateway extends BaseGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()

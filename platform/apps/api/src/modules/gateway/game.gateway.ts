@@ -50,6 +50,10 @@ interface PlaceBetPayload {
 @WebSocketGateway({
   namespace: '/game',
   cors: { origin: '*' },
+  transports: ['websocket'],
+  pingInterval: 25000,
+  pingTimeout: 30000,
+  maxHttpBufferSize: 1e6,
 })
 export class GameGateway extends BaseGateway implements OnModuleInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
@@ -325,10 +329,22 @@ export class GameGateway extends BaseGateway implements OnModuleInit, OnGatewayC
       });
       const room = `game:${gameId}`;
       const members = this.rooms.get(room) ?? new Set<string>();
+
+      // Index room members by player id ONCE, so per-bet emission is O(bets)
+      // instead of O(bets × connected sockets).
+      const byUser = new Map<string, string[]>();
+      for (const [socketId, info] of this.connectedUsers.entries()) {
+        if (!members.has(socketId)) continue;
+        const list = byUser.get(info.userId);
+        if (list) list.push(socketId);
+        else byUser.set(info.userId, [socketId]);
+      }
+
       for (const bet of bets) {
-        for (const [socketId, info] of this.connectedUsers.entries()) {
-          if (info.userId !== bet.playerId || !members.has(socketId)) continue;
-          const won = bet.status === 'won';
+        const sockets = byUser.get(bet.playerId);
+        if (!sockets) continue;
+        const won = bet.status === 'won';
+        for (const socketId of sockets) {
           this.server.to(socketId).emit('bet_result', {
             betId: bet.id,
             roundId,

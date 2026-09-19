@@ -11,7 +11,6 @@ import {
   Param,
   Query,
   UseGuards,
-  Request,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import {
@@ -24,11 +23,12 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PlayerAuthGuard } from '../auth/guards/player-auth.guard';
+import { CurrentPlayer, CurrentPlayerData } from '../auth/decorators/current-player.decorator';
 
 @ApiTags('Chat')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(PlayerAuthGuard)
 @Controller('chat')
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}
@@ -56,7 +56,7 @@ export class ChatController {
   @ApiResponse({ status: 403, description: 'Banned player or muted in room' })
   @ApiResponse({ status: 404, description: 'Room or receiver not found' })
   async sendMessage(
-    @Request() req: any,
+    @CurrentPlayer() player: CurrentPlayerData,
     @Body() body: {
       roomId?: string;
       receiverId?: string;
@@ -65,7 +65,7 @@ export class ChatController {
       metadata?: Record<string, unknown>;
     },
   ) {
-    return this.chatService.sendMessage(req.user.sub, body);
+    return this.chatService.sendMessage(player.sub, body);
   }
 
   @Get('rooms/:roomId/messages')
@@ -91,12 +91,12 @@ export class ChatController {
   @ApiResponse({ status: 200, description: 'Direct messages returned' })
   @ApiResponse({ status: 404, description: 'Player not found' })
   async getDirectMessages(
-    @Request() req: any,
+    @CurrentPlayer() player: CurrentPlayerData,
     @Param('playerId', ParseUUIDPipe) playerId: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.chatService.getDirectMessages(req.user.sub, playerId, page || 1, limit || 50);
+    return this.chatService.getDirectMessages(player.sub, playerId, page || 1, limit || 50);
   }
 
   @Delete('messages/:messageId')
@@ -106,10 +106,10 @@ export class ChatController {
   @ApiResponse({ status: 403, description: 'Not authorized to delete' })
   @ApiResponse({ status: 404, description: 'Message not found' })
   async deleteMessage(
-    @Request() req: any,
+    @CurrentPlayer() player: CurrentPlayerData,
     @Param('messageId', ParseUUIDPipe) messageId: string,
   ) {
-    return this.chatService.deleteMessage(messageId, req.user.sub);
+    return this.chatService.deleteMessage(messageId, player.sub);
   }
 
   // ============================================================
@@ -119,8 +119,8 @@ export class ChatController {
   @Get('conversations')
   @ApiOperation({ summary: 'List DM conversations with last message and unread count' })
   @ApiResponse({ status: 200, description: 'Conversations returned sorted by last message' })
-  async getConversations(@Request() req: any) {
-    return this.chatService.getConversations(req.user.sub);
+  async getConversations(@CurrentPlayer() player: CurrentPlayerData) {
+    return this.chatService.getConversations(player.sub);
   }
 
   @Get('search')
@@ -129,9 +129,9 @@ export class ChatController {
   @ApiResponse({ status: 200, description: 'Matching messages returned' })
   @ApiResponse({ status: 400, description: 'Empty search query' })
   async searchMessages(
-    @Request() req: any,
+    @CurrentPlayer() player: CurrentPlayerData,
     @Query('q') query: string,
   ) {
-    return this.chatService.searchMessages(req.user.sub, query);
+    return this.chatService.searchMessages(player.sub, query);
   }
 }

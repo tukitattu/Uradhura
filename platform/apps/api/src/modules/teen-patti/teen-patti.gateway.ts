@@ -14,6 +14,10 @@ import { TeenPattiService, TEEN_PATTI_EVENTS } from './teen-patti.service';
 @WebSocketGateway({
   namespace: '/teen-patti',
   cors: { origin: '*' },
+  transports: ['websocket'],
+  pingInterval: 25000,
+  pingTimeout: 30000,
+  maxHttpBufferSize: 1e6,
 })
 export class TeenPattiGateway extends BaseGateway implements OnModuleInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()

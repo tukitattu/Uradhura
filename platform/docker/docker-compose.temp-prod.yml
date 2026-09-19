@@ -1,0 +1,92 @@
+# ============================================================
+# TEMPORARY PRODUCTION STACK — this build only
+# Domain: bgwingbangkadesh.com  (temp — see nginx server_name)
+#
+# Reuses the already-running local Postgres/Redis (dev stack) via
+# host-gateway so DB/REDIS state is preserved. Nginx binds :80/:443.
+# ------------------------------------------------------------
+# Usage (from repo ROOT):
+#   docker compose -f docker/docker-compose.temp-prod.yml build
+#   docker compose -f docker/docker-compose.temp-prod.yml up -d
+# ============================================================
+
+services:
+  # ============================================================
+  # API (NestJS) — ports closed, reachable only via nginx
+  # ============================================================
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+      target: runner
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://gaming_admin:super_secret_password_123@host.docker.internal:5432/gaming_platform
+      REDIS_URL: redis://host.docker.internal:6379
+      JWT_SECRET: befc4c3570d4e90bdfe903a1ae1deffe22aa0a6c29eec838cb7bb0ec20390319da1d7711d417f56034f3a41eb4044ddd
+      JWT_REFRESH_SECRET: b17a5dad96a1f6075814fdab2bb8d6ac22dcb36011c34da14e27dc4535591fcd2a9c17a37a9e3cd5e89a617537e5c8e6
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      CORS_ORIGIN: http://bgwingbangkadesh.com,http://192.168.0.136,http://localhost,http://localhost:3001
+      ASSET_STORAGE_PATH: /app/storage/assets
+      ASSET_PUBLIC_ROOT: /assets
+      PUBLIC_API_URL: http://bgwingbangkadesh.com
+    volumes:
+      - assets_data:/app/storage/assets
+    healthcheck:
+      test: ["CMD-SHELL", "/app/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+  # ============================================================
+  # ADMIN (Next.js web) — ports closed, served via nginx at /
+  # ============================================================
+  admin:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.admin
+      target: runner
+      args:
+        NEXT_PUBLIC_API_URL: http://bgwingbangkadesh.com/api
+        NEXT_PUBLIC_WS_URL: ws://bgwingbangkadesh.com/ws
+        NEXT_PUBLIC_APP_URL: http://bgwingbangkadesh.com
+        NEXT_PUBLIC_APP_NAME: Uradhura Gaming Platform
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://bgwingbangkadesh.com/api
+      NEXT_PUBLIC_WS_URL: ws://bgwingbangkadesh.com/ws
+      NEXT_PUBLIC_APP_URL: http://bgwingbangkadesh.com
+      NEXT_PUBLIC_APP_NAME: Uradhura Gaming Platform
+      NEXT_TELEMETRY_DISABLED: 1
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3001/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+  # ============================================================
+  # NGINX — reverse proxy, binds host :80 / :443
+  # ============================================================
+  nginx:
+    build:
+      context: ..
+      dockerfile: docker/nginx/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - api
+      - admin
+
+volumes:
+  assets_data:
+    driver: local

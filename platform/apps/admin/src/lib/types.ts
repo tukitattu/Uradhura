@@ -2,8 +2,12 @@ export interface AdminUser {
   id: string;
   email: string;
   name: string;
-  role: "super_admin" | "admin" | "moderator";
+  role: "super_admin" | "admin" | "moderator" | "game_operator" | "finance" | "support" | "viewer";
   avatar?: string;
+  username?: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  roles: string[];
   permissions: string[];
   createdAt: string;
   updatedAt: string;
@@ -160,6 +164,13 @@ export interface PaginatedResponse<T> {
   totalPages: number;
 }
 
+export interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export interface ApiResponse<T> {
   data: T;
   message?: string;
@@ -236,4 +247,103 @@ export interface CatalogOptions {
   statuses: AssetStatus[];
   visibilities: AssetVisibility[];
   formats: string[];
+}
+
+export interface SystemSetting {
+  key: string;
+  value: any;
+  category: string | null;
+  description: string | null;
+  updatedBy: string | null;
+  updatedAt: string;
+}
+
+export interface FeatureFlag {
+  key: string;
+  label: string;
+  enabled: boolean;
+  updatedBy: string | null;
+  updatedAt: string;
+}
+
+export interface DesignToken {
+  scope: string;
+  key: string;
+  value: string;
+  label: string | null;
+  updatedBy: string | null;
+  updatedAt: string;
+}
+
+export interface GameBranding {
+  gameSlug: string;
+  displayName: string | null;
+  tagline: string | null;
+  primaryColor: string | null;
+  logoUrl: string | null;
+  bannerUrl: string | null;
+  accentColors: string[] | null;
+  updatedBy: string | null;
+  updatedAt: string;
+}
+
+export type AdminAuthorizationStatus = "pending" | "approved" | "rejected";
+
+export interface AdminAuthorizationRequest {
+  id: string;
+  playerId: string;
+  requestedRole: string;
+  requestedPermissions: string[];
+  notes: string | null;
+  status: AdminAuthorizationStatus;
+  reviewedById: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  player?: {
+    id: string;
+    username: string;
+    email: string | null;
+    phone: string | null;
+    isBanned: boolean;
+  };
+  reviewedBy?: { id: string; username: string; email: string | null } | null;
+  provisionedAdminId?: string;
+}
+
+export interface AdminRecord {
+  id: string;
+  username: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  isActive: boolean;
+  isVerified: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  roles?: { id: string; name: string }[];
+  permissions?: { permission: { id: string; resource: string; action: string }; effect: string }[];
+}
+
+export interface AuditLog {
+  id: string;
+  actorId: string | null;
+  actorType: string;
+  action: string;
+  entityType: string | null;
+  entityId: string | null;
+  before: string | null;
+  after: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  meta: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface TeenPattiConfig {
+  id: string;
+  key: string;
+  value: any;
+  updatedBy: string | null;
+  updatedAt: string;
 }

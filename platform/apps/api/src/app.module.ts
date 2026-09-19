@@ -7,6 +7,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { PrismaModule } from './prisma/prisma.module';
+import { PassportGlobalModule } from './modules/auth/passport-global.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PlayersModule } from './modules/players/players.module';
 import { GamesModule } from './modules/games/games.module';
@@ -23,6 +24,7 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
 import { AdminManagementModule } from './modules/admin-management/admin-management.module';
+import { AdminAuthorizationModule } from './modules/admin-authorization/admin-authorization.module';
 import { TeenPattiModule } from './modules/teen-patti/teen-patti.module';
 import { WithdrawalsModule } from './modules/withdrawals/withdrawal.module';
 import { AssetsModule } from './modules/assets/assets.module';
@@ -42,6 +44,9 @@ import { AssetsModule } from './modules/assets/assets.module';
     // Database
     PrismaModule,
 
+    // Passport (global for all AuthGuard(...) guards)
+    PassportGlobalModule,
+
     // Feature Modules
     AuthModule,
     PlayersModule,
@@ -59,6 +64,7 @@ import { AssetsModule } from './modules/assets/assets.module';
     DashboardModule,
     GatewayModule,
     AdminManagementModule,
+    AdminAuthorizationModule,
     TeenPattiModule,
     WithdrawalsModule,
     AssetsModule,

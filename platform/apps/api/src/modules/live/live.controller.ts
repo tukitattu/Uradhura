@@ -2,22 +2,23 @@
 // LIVE CONTROLLER
 // ============================================================
 
-import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { LiveService } from './live.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PlayerAuthGuard } from '../auth/guards/player-auth.guard';
+import { CurrentPlayer, CurrentPlayerData } from '../auth/decorators/current-player.decorator';
 
 @ApiTags('live')
 @Controller('live')
-@UseGuards(JwtAuthGuard)
+@UseGuards(PlayerAuthGuard)
 @ApiBearerAuth()
 export class LiveController {
   constructor(private readonly liveService: LiveService) {}
 
   @Post('rooms')
   @ApiOperation({ summary: 'Create a live room' })
-  async createRoom(@Request() req, @Body() body: any) {
-    return this.liveService.createRoom(req.user.sub, body);
+  async createRoom(@CurrentPlayer() player: CurrentPlayerData, @Body() body: any) {
+    return this.liveService.createRoom(player.sub, body);
   }
 
   @Get('rooms')
@@ -34,20 +35,20 @@ export class LiveController {
 
   @Post('rooms/:roomId/join')
   @ApiOperation({ summary: 'Join a live room' })
-  async joinRoom(@Request() req, @Param('roomId') roomId: string) {
-    return this.liveService.joinRoom(req.user.sub, roomId);
+  async joinRoom(@CurrentPlayer() player: CurrentPlayerData, @Param('roomId') roomId: string) {
+    return this.liveService.joinRoom(player.sub, roomId);
   }
 
   @Delete('rooms/:roomId/leave')
   @ApiOperation({ summary: 'Leave a live room' })
-  async leaveRoom(@Request() req, @Param('roomId') roomId: string) {
-    return this.liveService.leaveRoom(req.user.sub, roomId);
+  async leaveRoom(@CurrentPlayer() player: CurrentPlayerData, @Param('roomId') roomId: string) {
+    return this.liveService.leaveRoom(player.sub, roomId);
   }
 
   @Post('rooms/:roomId/end')
   @ApiOperation({ summary: 'End a live room (host only)' })
-  async endRoom(@Request() req, @Param('roomId') roomId: string) {
-    return this.liveService.endRoom(req.user.sub, roomId);
+  async endRoom(@CurrentPlayer() player: CurrentPlayerData, @Param('roomId') roomId: string) {
+    return this.liveService.endRoom(player.sub, roomId);
   }
 
   @Get('stats')

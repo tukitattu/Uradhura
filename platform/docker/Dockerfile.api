@@ -17,7 +17,7 @@ RUN apk add --no-cache python3 make g++
 COPY apps/api/package.json apps/api/package-lock.json* ./
 
 # Install all dependencies (including devDependencies for build)
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Copy source code and config files
 COPY apps/api/tsconfig.json tsconfig.json
@@ -34,7 +34,7 @@ COPY apps/api/src ./src
 RUN npm run build
 
 # Prune devDependencies after build
-RUN npm prune --production
+RUN npm prune --production --legacy-peer-deps
 
 # ----------------------------------------------------------
 # Stage 2: Runner — lean production image

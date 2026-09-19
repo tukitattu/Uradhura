@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   centerArea: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

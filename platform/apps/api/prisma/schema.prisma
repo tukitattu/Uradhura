@@ -46,6 +46,7 @@ model AdminUser {
   updatedTeenPattiConfigs TeenPattiConfig[]  @relation("TeenPattiConfigUpdatedBy")
   createdAssets      Asset[] @relation("AssetCreator")
   updatedAssets      Asset[] @relation("AssetUpdater")
+  reviewedAuthorizationRequests AdminAuthorizationRequest[] @relation("AuthorizationReviewer")
 
   @@map("admin_users")
 }
@@ -137,6 +138,29 @@ model AdminGame {
   @@unique([adminId, gameId])
   @@index([gameId])
   @@map("admin_games")
+}
+
+// Player → admin promotion request, reviewed by a super_admin (two-step
+// approval workflow from docs/admin-authorization-flow.md). Every decision
+// is immutable and audited.
+model AdminAuthorizationRequest {
+  id                   String   @id @default(uuid())
+  playerId             String
+  requestedRole        String   @default("admin") // admin, game_operator, finance, moderator, support, viewer
+  requestedPermissions String   @default("[]")    // JSON array of "resource:action" strings
+  notes                String?
+  status               String   @default("pending") // pending, approved, rejected
+  reviewedById         String?
+  reviewedAt           DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  player    Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  reviewedBy AdminUser? @relation("AuthorizationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([playerId, status])
+  @@map("admin_authorization_requests")
 }
 
 // Per-admin permission override (grant or revoke) on top of role permissions.
@@ -316,6 +340,7 @@ model Player {
   sentTransfers   WalletTransfer[] @relation("TransferSender")
   receivedTransfers WalletTransfer[] @relation("TransferReceiver")
   gameAccess      PlayerGameAccess[]
+  adminAuthorizationRequests AdminAuthorizationRequest[]
   limits          PlayerLimit?
   teenPattiSeats     TeenPattiSeat[]
   teenPattiHandSeats TeenPattiSeatHand[]

@@ -14,11 +14,15 @@ import {
 } from './types';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4002';
+// axios talks to <base>/api/v1/... but Socket.IO namespaces are mounted at the
+// server ROOT (/game, /live, /chat, /teen-patti) — never under /api/v1. Derive
+// the origin so one env var works for both REST and realtime.
+const SOCKET_BASE = new URL(API_BASE_URL).origin || API_BASE_URL;
 
 export type Namespace = '/game' | '/live' | '/chat';
 
 export function createSocket(namespace: Namespace): Socket {
-  const socket = io(`${API_BASE_URL}${namespace}`, {
+  const socket = io(`${SOCKET_BASE}${namespace}`, {
     transports: ['websocket'],
     autoConnect: false,
     auth: async (cb) => {

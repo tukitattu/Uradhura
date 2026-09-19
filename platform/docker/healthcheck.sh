@@ -8,14 +8,21 @@ set -e
 
 # Configuration
 HEALTH_PORT="${PORT:-4000}"
-HEALTH_ENDPOINT="/api/health"
+HEALTH_ENDPOINT="/health"
+HEALTH_ENDPOINT_ALT="/api/v1/health"
 TIMEOUT=5
 
 # Check if the application is responding
 check_http() {
     wget --no-verbose --tries=1 --timeout="$TIMEOUT" \
         -q -O - "http://localhost:${HEALTH_PORT}${HEALTH_ENDPOINT}" 2>/dev/null
-    return $?
+    local rc=$?
+    if [ "$rc" -ne 0 ] && [ -n "$HEALTH_ENDPOINT_ALT" ]; then
+        wget --no-verbose --tries=1 --timeout="$TIMEOUT" \
+            -q -O - "http://localhost:${HEALTH_PORT}${HEALTH_ENDPOINT_ALT}" 2>/dev/null
+        rc=$?
+    fi
+    return $rc
 }
 
 # Check if the node process is running

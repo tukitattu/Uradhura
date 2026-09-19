@@ -1,0 +1,110 @@
+# ============================================================
+# STANDALONE ANDROID APK BUILD — Uradhura Player
+#
+# Builds a self-contained, installable release APK from the current
+# branch using expo prebuild + gradle assembleRelease (no Expo/EAS
+# cloud account needed). The signed APK is uploaded as an artifact
+# and attached to a GitHub Release for direct download.
+#
+# API base URL defaults to the TEMPORARY production domain
+# bgwingbangkadesh.com for this build only — override via the
+# api_url input on workflow_dispatch.
+#
+# Required repo secrets:
+#   ANDROID_KEYSTORE_B64     base64 of the release signing keystore
+#   ANDROID_KEYSTORE_PASSWORD keystore/key password
+#   ANDROID_KEYSTORE_ALIAS    key alias
+# ============================================================
+
+name: Build Standalone APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: 'API + Socket.IO base URL baked into the APK (temporary for this build)'
+        required: false
+        default: 'http://bgwingbangkadesh.com/api/v1'
+
+env:
+  NODE_VERSION: '20'
+  JDK_VERSION: '17'
+
+jobs:
+  build-apk:
+    name: Build Standalone APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: platform/apps/player/package-lock.json
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JDK_VERSION }}
+
+      - name: Install player dependencies
+        working-directory: platform/apps/player
+        run: npm ci
+
+      - name: Generate Android native project
+        working-directory: platform/apps/player
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Restore signing keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PATH: platform/apps/player/android/app/keystore/release.keystore
+        run: |
+          mkdir -p "$(dirname "$KEYSTORE_PATH")"
+          echo "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          ls -la "$KEYSTORE_PATH"
+
+      - name: Configure release signing
+        working-directory: platform/apps/player/android
+        run: |
+          cat >> gradle.properties << EOF
+          MYAPP_UPLOAD_STORE_FILE=keystore/release.keystore
+          MYAPP_UPLOAD_KEY_ALIAS=${{ secrets.ANDROID_KEYSTORE_ALIAS }}
+          MYAPP_UPLOAD_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          MYAPP_UPLOAD_KEY_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          EOF
+          cat gradle.properties
+
+      - name: Build release APK
+        working-directory: platform/apps/player/android
+        env:
+          EXPO_PUBLIC_API_URL: ${{ github.event.inputs.api_url }}
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uradhura-player-release
+          path: platform/apps/player/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: standalone-apk
+          name: Uradhura Player — Standalone APK
+          body: |
+            Standalone Android APK (ready to install).
+            Built from commit ${{ github.sha }} on branch ${{ github.ref_name }}.
+            Backend base URL baked into this build: `${{ github.event.inputs.api_url }}`
+          files: platform/apps/player/android/app/build/outputs/apk/release/app-release.apk
+          prerelease: true

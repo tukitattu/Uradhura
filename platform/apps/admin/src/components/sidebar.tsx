@@ -27,6 +27,12 @@ import {
   BarChart3,
   LogOut,
   Image as ImageIcon,
+  UserCog,
+  FileClock,
+  ClipboardCheck,
+  Coins,
+  Palette,
+  Home,
 } from "lucide-react";
 
 const navigation = [
@@ -38,12 +44,21 @@ const navigation = [
   { href: "/reports", label: "Reports", icon: Flag },
   { href: "/moderation", label: "Moderation", icon: Shield },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+];
+
+const superAdminNavigation = [
+  { href: "/authorization", label: "Admin Authorization", icon: ClipboardCheck },
+  { href: "/admin-management", label: "Admin Management", icon: UserCog },
+  { href: "/audit", label: "Audit Logs", icon: FileClock },
+  { href: "/teen-patti", label: "Teen Patti", icon: Home },
+  { href: "/withdrawals", label: "Withdrawals", icon: Coins },
+  { href: "/branding", label: "Branding", icon: Palette },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function AdminSidebar() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, isSuperAdmin, logout } = useAuth();
 
   return (
     <Sidebar>
@@ -72,6 +87,27 @@ export function AdminSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
+
+          {isSuperAdmin && (
+            <>
+              <Separator className="my-2" />
+              <p className="px-4 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Super Admin
+              </p>
+              {superAdminNavigation.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton asChild active={pathname === item.href || pathname.startsWith(item.href + "/")}>
+                    <Link href={item.href}>
+                      <SidebarMenuIcon>
+                        <item.icon className="h-4 w-4" />
+                      </SidebarMenuIcon>
+                      <SidebarMenuLabel>{item.label}</SidebarMenuLabel>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </>
+          )}
         </SidebarMenu>
       </SidebarContent>
 
@@ -85,7 +121,7 @@ export function AdminSidebar() {
           </Avatar>
           <div className="flex-1 overflow-hidden">
             <p className="text-sm font-medium truncate">{user?.name || "Admin"}</p>
-            <p className="text-xs text-muted-foreground truncate">{user?.role || "admin"}</p>
+            <p className="text-xs text-muted-foreground truncate">{user?.roles?.join(", ") || user?.role || "admin"}</p>
           </div>
           <button
             onClick={logout}
