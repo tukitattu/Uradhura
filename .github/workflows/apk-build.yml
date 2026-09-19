@@ -74,12 +74,13 @@ jobs:
       - name: Configure release signing
         working-directory: platform/apps/player/android
         run: |
-          cat >> gradle.properties << EOF
-          MYAPP_UPLOAD_STORE_FILE=keystore/release.keystore
-          MYAPP_UPLOAD_KEY_ALIAS=${{ secrets.ANDROID_KEYSTORE_ALIAS }}
-          MYAPP_UPLOAD_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          MYAPP_UPLOAD_KEY_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          EOF
+          {
+            echo ""
+            echo "MYAPP_UPLOAD_STORE_FILE=keystore/release.keystore"
+            echo "MYAPP_UPLOAD_KEY_ALIAS=${{ secrets.ANDROID_KEYSTORE_ALIAS }}"
+            echo "MYAPP_UPLOAD_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"
+            echo "MYAPP_UPLOAD_KEY_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"
+          } >> gradle.properties
           cat gradle.properties
 
       - name: Build release APK
