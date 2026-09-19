@@ -1,6 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import PartyScreen from '../screens/party/PartyScreen';
+import { translucentHeader } from '../theme';
 
 const Stack = createNativeStackNavigator();
 
@@ -8,12 +9,11 @@ export default function PartyStack() {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: '#16213e' },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: '600' },
+        ...translucentHeader(),
+        headerTitleStyle: { fontWeight: '700' },
       }}
     >
-      <Stack.Screen name="Party" component={PartyScreen} options={{ title: 'Party' }} />
+      <Stack.Screen name="Party" component={PartyScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Message } from '../lib/types';
+import { colors, radius } from '../theme';
 
 interface Props {
   message: Message;
@@ -39,27 +40,27 @@ const styles = StyleSheet.create({
   },
   sender: {
     fontSize: 11,
-    color: '#aaa',
+    color: colors.textSecondary,
     marginBottom: 4,
     marginLeft: 4,
   },
   bubble: {
-    borderRadius: 16,
+    borderRadius: radius.lg,
     paddingHorizontal: 14,
     paddingVertical: 10,
     maxWidth: '100%',
   },
   bubbleOwn: {
-    backgroundColor: '#e94560',
+    backgroundColor: colors.roseDeep,
     borderBottomRightRadius: 4,
   },
   bubbleOther: {
-    backgroundColor: '#16213e',
+    backgroundColor: colors.glassStrong,
     borderBottomLeftRadius: 4,
   },
   text: {
     fontSize: 14,
-    color: '#fff',
+    color: colors.textSoft,
     lineHeight: 20,
   },
   textOwn: {
@@ -67,7 +68,7 @@ const styles = StyleSheet.create({
   },
   time: {
     fontSize: 10,
-    color: '#666',
+    color: colors.textSecondary,
     marginTop: 4,
     marginHorizontal: 4,
   },

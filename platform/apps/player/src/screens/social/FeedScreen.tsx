@@ -5,6 +5,9 @@ import PostCard from '../../components/PostCard';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import EmptyState from '../../components/EmptyState';
 import { Post } from '../../lib/types';
+import { BrandBackground } from '../../components/ui/BrandBackground';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { colors } from '../../theme';
 
 export default function FeedScreen({ navigation }: any) {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -66,29 +69,30 @@ export default function FeedScreen({ navigation }: any) {
   if (isLoading) return <LoadingSpinner />;
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={posts}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <PostCard
-            post={item}
-            onLike={() => handleLike(item.id)}
-            onPress={() => navigation.navigate('Profile', { playerId: item.playerId })}
-          />
-        )}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#e94560" />}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.5}
-        ListEmptyComponent={<EmptyState message="No posts yet" />}
-      />
-    </View>
+    <BrandBackground assetKey="bg.home.default" overlay={0.55}>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <FlatList
+          data={posts}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <PostCard
+              post={item}
+              onLike={() => handleLike(item.id)}
+              onPress={() => navigation.navigate('Profile', { playerId: item.playerId })}
+            />
+          )}
+          contentContainerStyle={styles.listContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.cyan} />}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListEmptyComponent={<EmptyState icon="icons.profile.items" message="No posts yet" />}
+        />
+      </SafeAreaView>
+    </BrandBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
-  },
+  safe: { flex: 1 },
+  listContent: { paddingVertical: 12 },
 });

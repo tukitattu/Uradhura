@@ -96,17 +96,20 @@ function fillDiamond(buf, size, cx, cy, r, color) {
   }
 }
 
-// Theme: deep navy bg, emerald ring, white card, red diamond.
-const NAVY = [13, 17, 30, 255];
-const EMERALD = [34, 197, 94, 255];
+// Theme: deep navy bg, gold ring, white card, rose diamond (Uradhura brand).
+const NAVY = [10, 18, 32, 255];
+const EMERALD = [255, 194, 77, 255]; // gold ring
 const GOLD = [251, 191, 36, 255];
 const WHITE = [255, 255, 255, 255];
-const RED = [220, 38, 38, 255];
+const RED = [225, 29, 72, 255]; // rose deep diamond
 
 function drawEmblem(buf, size, cx, cy, scale) {
   // outer ring
   fillCircle(buf, size, cx, cy, 0.32 * size * scale, EMERALD);
   fillCircle(buf, size, cx, cy, 0.24 * size * scale, NAVY);
+  // gold inner accent ring
+  fillCircle(buf, size, cx, cy, 0.20 * size * scale, GOLD);
+  fillCircle(buf, size, cx, cy, 0.17 * size * scale, NAVY);
   // card
   const cw = 0.30 * size * scale;
   const ch = 0.42 * size * scale;

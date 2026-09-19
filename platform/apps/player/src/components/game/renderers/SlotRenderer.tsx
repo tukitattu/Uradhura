@@ -104,11 +104,11 @@ const styles = StyleSheet.create({
   },
   machine: {
     position: 'relative',
-    backgroundColor: '#0f3460',
+    backgroundColor: '#24395f',
     borderRadius: 16,
     padding: 12,
     borderWidth: 2,
-    borderColor: '#e94560',
+    borderColor: '#e11d48',
   },
   reels: {
     flexDirection: 'row',
@@ -121,11 +121,11 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 10,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#0a1220',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#16213e',
+    borderColor: '#16243f',
   },
   cellPayline: {
     borderColor: '#4ecca3',

@@ -45,7 +45,7 @@ export default function RoundTimer({ deadline, onComplete }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#0a1220',
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 16,
@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   containerUrgent: {
-    backgroundColor: '#e9456020',
+    backgroundColor: '#e11d4820',
   },
   time: {
     fontSize: 24,
@@ -62,6 +62,6 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   timeUrgent: {
-    color: '#e94560',
+    color: '#e11d48',
   },
 });

@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRoute, RouteProp } from '@react-navigation/native';
+import { BrandBackground } from '../../components/ui/BrandBackground';
+import { colors, backgroundKeys } from '../../theme';
 import { useLiveGame } from '../../contexts/GameSocketContext';
 import { GameRendererProps } from '../../components/game/renderers/types';
 import WheelRenderer from '../../components/game/renderers/WheelRenderer';
@@ -52,9 +54,9 @@ function roundStatusLabel(status: RoundStatus | undefined): string {
 }
 
 function statusAccent(status: RoundStatus | undefined): string {
-  if (status === 'betting_open') return '#4ecca3';
-  if (status === 'betting_closed' || status === 'result_processing') return '#f5a623';
-  return '#888';
+  if (status === 'betting_open') return colors.green;
+  if (status === 'betting_closed' || status === 'result_processing') return colors.gold;
+  return colors.textSecondary;
 }
 
 export default function GamePlayScreen({ navigation }: { navigation?: { setOptions: (o: { title: string }) => void } }) {
@@ -141,22 +143,23 @@ export default function GamePlayScreen({ navigation }: { navigation?: { setOptio
       : undefined;
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.gameName} numberOfLines={1}>
-              {game?.displayName || game?.name || 'Game'}
-            </Text>
-            <Text style={[styles.roundStatus, { color: statusAccent(round?.status) }]}>
-              {round ? `Round #${round.roundNumber} · ${roundStatusLabel(round.status)}` : roundStatusLabel(undefined)}
-            </Text>
+    <BrandBackground assetKey={backgroundKeys.games} overlay={0.6}>
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <Text style={styles.gameName} numberOfLines={1}>
+                {game?.displayName || game?.name || 'Game'}
+              </Text>
+              <Text style={[styles.roundStatus, { color: statusAccent(round?.status) }]}>
+                {round ? `Round #${round.roundNumber} · ${roundStatusLabel(round.status)}` : roundStatusLabel(undefined)}
+              </Text>
+            </View>
+            <View style={styles.connectionBadge}>
+              <View style={[styles.connectionDot, { backgroundColor: isConnected ? colors.green : colors.gold }]} />
+              <Text style={styles.connectionText}>{isConnected ? 'LIVE' : 'RECONNECTING'}</Text>
+            </View>
           </View>
-          <View style={styles.connectionBadge}>
-            <View style={[styles.connectionDot, { backgroundColor: isConnected ? '#4ecca3' : '#f5a623' }]} />
-            <Text style={styles.connectionText}>{isConnected ? 'LIVE' : 'RECONNECTING'}</Text>
-          </View>
-        </View>
 
         {socketError ? (
           <View style={styles.errorBanner}>
@@ -257,26 +260,26 @@ export default function GamePlayScreen({ navigation }: { navigation?: { setOptio
         result={lastResult}
         onRotateSeed={rotateSeed}
       />
-    </View>
+      </View>
+    </BrandBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
   },
   scrollContent: {
     paddingBottom: 32,
   },
   centered: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   retryButton: {
-    backgroundColor: '#e94560',
+    backgroundColor: colors.primary,
     borderRadius: 10,
     paddingHorizontal: 24,
     paddingVertical: 12,
@@ -300,8 +303,8 @@ const styles = StyleSheet.create({
   },
   gameName: {
     fontSize: 22,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: '800',
+    color: colors.textSoft,
   },
   roundStatus: {
     fontSize: 13,
@@ -312,7 +315,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#16213e',
+    backgroundColor: colors.glass,
+    borderColor: colors.border,
+    borderWidth: 1,
     borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -326,19 +331,19 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1,
-    color: '#aaa',
+    color: colors.textSecondary,
   },
   errorBanner: {
     marginHorizontal: 16,
     marginBottom: 6,
     padding: 10,
-    backgroundColor: '#e9456020',
+    backgroundColor: 'rgba(225,29,72,0.12)',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e94560',
+    borderColor: colors.roseDeep,
   },
   errorBannerText: {
-    color: '#e94560',
+    color: colors.rose,
     fontSize: 12,
     textAlign: 'center',
   },
@@ -352,21 +357,21 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 4,
     paddingVertical: 12,
-    backgroundColor: '#16213e',
-    borderRadius: 12,
+    backgroundColor: colors.glass,
+    borderColor: colors.border,
     borderWidth: 1,
-    borderColor: '#0f3460',
+    borderRadius: 12,
   },
   stat: {
     alignItems: 'center',
   },
   statValue: {
-    color: '#fff',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '700',
   },
   statLabel: {
-    color: '#888',
+    color: colors.textMuted,
     fontSize: 10,
     marginTop: 2,
     textTransform: 'uppercase',
@@ -375,12 +380,14 @@ const styles = StyleSheet.create({
   noRound: {
     margin: 16,
     padding: 20,
-    backgroundColor: '#16213e',
+    backgroundColor: colors.glass,
+    borderColor: colors.border,
+    borderWidth: 1,
     borderRadius: 12,
     alignItems: 'center',
   },
   noRoundText: {
-    color: '#aaa',
+    color: colors.textSecondary,
     fontSize: 14,
   },
   fairnessButton: {
@@ -390,29 +397,31 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#4ecca3',
-    backgroundColor: '#4ecca315',
+    borderColor: colors.green,
+    backgroundColor: 'rgba(52,211,153,0.10)',
   },
   fairnessButtonText: {
-    color: '#4ecca3',
+    color: colors.green,
     fontSize: 13,
     fontWeight: '600',
   },
   rulesContainer: {
     margin: 16,
     padding: 18,
-    backgroundColor: '#16213e',
+    backgroundColor: colors.glass,
+    borderColor: colors.border,
+    borderWidth: 1,
     borderRadius: 12,
   },
   rulesTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: '800',
+    color: colors.textSoft,
     marginBottom: 8,
   },
   rulesText: {
     fontSize: 13,
-    color: '#aaa',
+    color: colors.textSecondary,
     lineHeight: 20,
   },
 });

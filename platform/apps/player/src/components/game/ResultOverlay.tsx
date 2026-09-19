@@ -67,7 +67,7 @@ export default function ResultOverlay({ result, personalResult, options, onDismi
           </View>
         ) : lost && personalResult ? (
           <View style={[styles.personal, styles.personalLost]}>
-            <Text style={[styles.personalText, { color: '#e94560' }]}>
+            <Text style={[styles.personalText, { color: '#e11d48' }]}>
               You lost {formatCoins(personalResult.amount)} coins this round.
             </Text>
           </View>
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   card: {
-    backgroundColor: '#16213e',
+    backgroundColor: '#16243f',
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#4ecca3',
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 28,
     borderWidth: 2,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#0a1220',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#4ecca322',
   },
   personalLost: {
-    backgroundColor: '#e9456022',
+    backgroundColor: '#e11d4822',
   },
   personalText: {
     fontSize: 14,
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#0f3460',
+    borderColor: '#24395f',
   },
   dismissText: {
     color: '#aaa',

@@ -4,6 +4,7 @@ import HomeScreen from '../screens/home/HomeScreen';
 import GamePlayScreen from '../screens/games/GamePlayScreen';
 import FeedScreen from '../screens/social/FeedScreen';
 import ProfileScreen from '../screens/social/ProfileScreen';
+import { translucentHeader } from '../theme';
 
 const Stack = createNativeStackNavigator();
 
@@ -11,18 +12,17 @@ export default function HomeStack() {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: '#16213e' },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: '600' },
+        ...translucentHeader(),
+        headerTitleStyle: { fontWeight: '700' },
       }}
     >
-      <Stack.Screen name="HomeScreen" component={HomeScreen} options={{ title: 'Uradhura' }} />
+      <Stack.Screen name="HomeScreen" component={HomeScreen} options={{ headerShown: false }} />
       <Stack.Screen
         name="GamePlay"
         component={GamePlayScreen}
         options={({ route }: any) => ({ title: 'Play' })}
       />
-      <Stack.Screen name="Feed" component={FeedScreen} options={{ title: 'Feed' }} />
+      <Stack.Screen name="Feed" component={FeedScreen} options={{ title: 'Feed', headerShown: false }} />
       <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
     </Stack.Navigator>
   );

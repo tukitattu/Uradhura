@@ -7,6 +7,8 @@ import { api } from '../../lib/api';
 import { Message } from '../../lib/types';
 import MessageBubble from '../../components/MessageBubble';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { BrandBackground } from '../../components/ui/BrandBackground';
+import { colors, radius } from '../../theme';
 
 type RouteParams = {
   params: {
@@ -79,50 +81,51 @@ export default function ChatScreen() {
   if (isLoading) return <LoadingSpinner />;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={90}
-    >
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <MessageBubble message={item} isOwn={item.senderId === user?.id} />
-        )}
-        contentContainerStyle={styles.messageList}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-      />
-
-      <View style={styles.inputBar}>
-        <TextInput
-          style={styles.textInput}
-          placeholder="Type a message..."
-          placeholderTextColor="#666"
-          value={inputText}
-          onChangeText={setInputText}
-          multiline
-          maxLength={500}
+    <BrandBackground assetKey="bg.room.default" overlay={0.62}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={90}
+      >
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <MessageBubble message={item} isOwn={item.senderId === user?.id} />
+          )}
+          contentContainerStyle={styles.messageList}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         />
-        <TouchableOpacity
-          style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
-          onPress={sendMessage}
-          disabled={!inputText.trim()}
-        >
-          <View style={styles.sendButtonInner}>
-            <View style={styles.sendArrow} />
-          </View>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+
+        <View style={styles.inputBar}>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Type a message..."
+            placeholderTextColor={colors.textMuted}
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+            maxLength={500}
+          />
+          <TouchableOpacity
+            style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+            onPress={sendMessage}
+            disabled={!inputText.trim()}
+          >
+            <View style={styles.sendButtonInner}>
+              <View style={styles.sendArrow} />
+            </View>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </BrandBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
   },
   messageList: {
     padding: 16,
@@ -133,16 +136,19 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     padding: 12,
     borderTopWidth: 1,
-    borderTopColor: '#0f3460',
+    borderTopColor: colors.border,
+    backgroundColor: colors.glassStrong,
     gap: 8,
   },
   textInput: {
     flex: 1,
-    backgroundColor: '#16213e',
+    backgroundColor: colors.glass,
+    borderColor: colors.border,
+    borderWidth: 1,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    color: '#fff',
+    color: colors.text,
     fontSize: 14,
     maxHeight: 100,
   },
@@ -150,12 +156,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#e94560',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: '#333',
+    backgroundColor: colors.textMuted,
   },
   sendButtonInner: {
     width: 0,

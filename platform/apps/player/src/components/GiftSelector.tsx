@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { api } from '../lib/api';
 import { LiveGift } from '../lib/types';
+import { colors, radius } from '../theme';
 
 interface Props {
   onSelect: (giftId: string) => void;
@@ -54,9 +55,9 @@ export default function GiftSelector({ onSelect, onClose }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
-    borderTopColor: '#0f3460',
+    borderTopColor: colors.border,
     maxHeight: 300,
   },
   header: {
@@ -65,16 +66,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#0f3460',
+    borderBottomColor: colors.border,
   },
   title: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: colors.text,
   },
   closeText: {
     fontSize: 14,
-    color: '#e94560',
+    color: colors.roseDeep,
   },
   grid: {
     padding: 12,
@@ -90,11 +91,11 @@ const styles = StyleSheet.create({
   },
   giftName: {
     fontSize: 10,
-    color: '#aaa',
+    color: colors.textSecondary,
   },
   giftPrice: {
     fontSize: 10,
-    color: '#e94560',
+    color: colors.goldDeep,
     fontWeight: '600',
   },
 });

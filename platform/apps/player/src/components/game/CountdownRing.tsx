@@ -31,7 +31,7 @@ export default function CountdownRing({
   totalMs,
   size = 120,
   color = '#4ecca3',
-  trackColor = '#0f3460',
+  trackColor = '#24395f',
   label = 'BETTING CLOSES',
 }: CountdownRingProps) {
   const serverNow = useServerNow(serverTimeOffset);
@@ -76,7 +76,7 @@ export default function CountdownRing({
 
   const seconds = Math.ceil(remaining / 1000);
   const display = seconds > 0 ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : '0:00';
-  const accentColor = isUrgent ? '#e94560' : color;
+  const accentColor = isUrgent ? '#e11d48' : color;
 
   return (
     <View style={styles.container}>

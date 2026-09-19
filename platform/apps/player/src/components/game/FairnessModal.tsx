@@ -111,10 +111,10 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: '#16213e',
+    backgroundColor: '#16243f',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#0f3460',
+    borderColor: '#24395f',
     padding: 18,
   },
   header: {
@@ -187,17 +187,17 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#0a1220',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 13,
     color: '#fff',
     borderWidth: 1,
-    borderColor: '#0f3460',
+    borderColor: '#24395f',
   },
   rotateButton: {
-    backgroundColor: '#e94560',
+    backgroundColor: '#e11d48',
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 10,

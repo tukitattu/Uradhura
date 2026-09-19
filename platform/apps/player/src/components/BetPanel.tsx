@@ -100,10 +100,10 @@ const styles = StyleSheet.create({
   container: {
     margin: 16,
     padding: 20,
-    backgroundColor: '#16213e',
+    backgroundColor: '#16243f',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#0f3460',
+    borderColor: '#24395f',
   },
   title: {
     fontSize: 18,
@@ -120,14 +120,14 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 10,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#0a1220',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#0f3460',
+    borderColor: '#24395f',
   },
   optionButtonActive: {
-    backgroundColor: '#e94560',
-    borderColor: '#e94560',
+    backgroundColor: '#e11d48',
+    borderColor: '#e11d48',
   },
   optionText: {
     fontSize: 16,
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   amountInput: {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#0a1220',
     borderRadius: 10,
     padding: 14,
     fontSize: 18,
@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     textAlign: 'center',
     borderWidth: 1,
-    borderColor: '#0f3460',
+    borderColor: '#24395f',
     marginBottom: 12,
   },
   quickAmounts: {
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#0a1220',
     alignItems: 'center',
   },
   quickAmountText: {
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
     color: '#aaa',
   },
   placeButton: {
-    backgroundColor: '#e94560',
+    backgroundColor: '#e11d48',
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',

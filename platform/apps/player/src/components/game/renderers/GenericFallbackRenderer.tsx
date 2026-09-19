@@ -20,7 +20,7 @@ export default function GenericFallbackRenderer({ game, round, options, betTotal
                 key={option.id}
                 style={[
                   styles.optionRow,
-                  { borderColor: isWinner ? '#ffd700' : option.colorHex || '#0f3460' },
+                  { borderColor: isWinner ? '#ffd700' : option.colorHex || '#24395f' },
                   isWinner && styles.optionRowWinner,
                 ]}
               >
@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#16213e',
+    backgroundColor: '#16243f',
     borderRadius: 10,
     borderWidth: 1.5,
     paddingHorizontal: 12,

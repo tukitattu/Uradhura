@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { GameOption, GameRound, GameBetConfig, BetTotals } from '../../lib/types';
 import { betConfigBounds, formatCoins, formatMultiplier, optionEmoji, parseBetDenominations } from '../../lib/game';
+import { colors, radius } from '../../theme';
 
 interface BetChipPanelProps {
   round: GameRound;
@@ -84,7 +85,7 @@ export default function BetChipPanel({
               key={option.id}
               style={[
                 styles.optionChip,
-                { borderColor: option.colorHex || '#0f3460' },
+                { borderColor: option.colorHex || '#24395f' },
                 active && styles.optionChipActive,
                 !bettingOpen && styles.optionChipDisabled,
               ]}
@@ -168,10 +169,10 @@ const styles = StyleSheet.create({
   container: {
     margin: 16,
     padding: 16,
-    backgroundColor: '#16213e',
+    backgroundColor: colors.glass,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#0f3460',
+    borderColor: colors.border,
   },
   titleRow: {
     flexDirection: 'row',
@@ -181,12 +182,12 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: '800',
+    color: colors.textSoft,
   },
   balance: {
     fontSize: 13,
-    color: '#aaa',
+    color: colors.textSecondary,
   },
   optionsWrap: {
     flexDirection: 'row',
@@ -201,12 +202,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.surface,
     borderWidth: 1,
     alignItems: 'center',
   },
   optionChipActive: {
-    backgroundColor: '#e9456030',
+    backgroundColor: 'rgba(46,107,255,0.25)',
+    borderColor: colors.cyan,
   },
   optionChipDisabled: {
     opacity: 0.55,
@@ -216,7 +218,7 @@ const styles = StyleSheet.create({
     top: 6,
     right: 8,
     fontSize: 10,
-    color: '#e94560',
+    color: colors.cyan,
   },
   optionIcon: {
     fontSize: 26,
@@ -235,13 +237,13 @@ const styles = StyleSheet.create({
   },
   optionMeta: {
     fontSize: 10,
-    color: '#888',
+    color: colors.textSecondary,
     marginTop: 3,
     textAlign: 'center',
   },
   closedNote: {
     fontSize: 13,
-    color: '#e94560',
+    color: colors.gold,
     textAlign: 'center',
     marginBottom: 12,
   },
@@ -250,7 +252,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 12,
-    color: '#aaa',
+    color: colors.textSecondary,
     marginBottom: 8,
   },
   chipRow: {
@@ -263,24 +265,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#0f3460',
+    borderColor: colors.border,
   },
   amountChipActive: {
-    borderColor: '#e94560',
-    backgroundColor: '#e9456020',
+    borderColor: colors.cyan,
+    backgroundColor: 'rgba(46,107,255,0.25)',
   },
   amountChipText: {
     fontSize: 12,
-    color: '#aaa',
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   amountChipTextActive: {
     color: '#fff',
   },
   amountInput: {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.surface,
     borderRadius: 10,
     padding: 12,
     fontSize: 16,
@@ -288,22 +290,22 @@ const styles = StyleSheet.create({
     color: '#fff',
     textAlign: 'center',
     borderWidth: 1,
-    borderColor: '#0f3460',
+    borderColor: colors.border,
   },
   validation: {
     fontSize: 12,
-    color: '#e94560',
+    color: colors.rose,
     marginTop: 8,
   },
   serverError: {
     fontSize: 13,
-    color: '#e94560',
+    color: colors.rose,
     textAlign: 'center',
     marginBottom: 10,
   },
   placeButton: {
-    backgroundColor: '#e94560',
-    borderRadius: 10,
+    backgroundColor: colors.primary,
+    borderRadius: radius.lg,
     paddingVertical: 14,
     alignItems: 'center',
   },
@@ -313,6 +315,6 @@ const styles = StyleSheet.create({
   placeButtonText: {
     color: '#fff',
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

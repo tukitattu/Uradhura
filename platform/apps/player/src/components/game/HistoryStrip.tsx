@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
   chip: {
     width: 62,
     alignItems: 'center',
-    backgroundColor: '#16213e',
+    backgroundColor: '#16243f',
     borderRadius: 10,
     borderWidth: 1,
     paddingVertical: 8,

@@ -1,15 +1,24 @@
 import React from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { colors } from '../theme';
+import { BrandAsset } from '../lib/assets/BrandAsset';
 
 interface Props {
   size?: 'small' | 'large';
-  color?: string;
+  brand?: boolean;
 }
 
-export default function LoadingSpinner({ size = 'large', color = '#e94560' }: Props) {
+export default function LoadingSpinner({ size = 'large', brand = true }: Props) {
   return (
     <View style={styles.container}>
-      <ActivityIndicator size={size} color={color} />
+      {brand ? (
+        <>
+          <BrandAsset assetKey="logo.uradhura-emblem" size={56} />
+          <ActivityIndicator size={size} color={colors.cyan} style={styles.spinner} />
+        </>
+      ) : (
+        <ActivityIndicator size={size} color={colors.cyan} />
+      )}
     </View>
   );
 }
@@ -19,6 +28,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.bg,
+    gap: 16,
   },
+  spinner: { marginTop: 4 },
 });

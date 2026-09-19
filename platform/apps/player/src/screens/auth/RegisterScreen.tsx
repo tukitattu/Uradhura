@@ -5,14 +5,15 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { BrandBackground } from '../../components/ui/BrandBackground';
+import { BrandAsset } from '../../lib/assets/BrandAsset';
+import { BrandButton } from '../../components/ui/BrandButton';
+import { colors, radius, spacing } from '../../theme';
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -74,19 +75,19 @@ export default function RegisterScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.subtitle}>Join the Uradhura community</Text>
+    <BrandBackground assetKey="bg.home.default" overlay={0.62} bottomScrim={false}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <View style={styles.brand}>
+          <BrandAsset assetKey="logo.uradhura-emblem" size={72} />
+          <Text style={styles.title}>Join Uradhura</Text>
+          <Text style={styles.subtitle}>Create your player profile</Text>
+        </View>
 
         <View style={styles.form}>
           <TextInput
             style={styles.input}
             placeholder="Username"
-            placeholderTextColor="#666"
+            placeholderTextColor={colors.textMuted}
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
@@ -95,14 +96,14 @@ export default function RegisterScreen({ navigation }: Props) {
           <TextInput
             style={styles.input}
             placeholder="Display Name"
-            placeholderTextColor="#666"
+            placeholderTextColor={colors.textMuted}
             value={displayName}
             onChangeText={setDisplayName}
           />
           <TextInput
             style={styles.input}
             placeholder="Email"
-            placeholderTextColor="#666"
+            placeholderTextColor={colors.textMuted}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -111,7 +112,7 @@ export default function RegisterScreen({ navigation }: Props) {
           <TextInput
             style={styles.input}
             placeholder="Password"
-            placeholderTextColor="#666"
+            placeholderTextColor={colors.textMuted}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -119,23 +120,13 @@ export default function RegisterScreen({ navigation }: Props) {
           <TextInput
             style={styles.input}
             placeholder="Confirm Password"
-            placeholderTextColor="#666"
+            placeholderTextColor={colors.textMuted}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry
           />
 
-          <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={handleRegister}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Sign Up</Text>
-            )}
-          </TouchableOpacity>
+          <BrandButton label="Sign Up" onPress={handleRegister} loading={isLoading} />
 
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.linkText}>
@@ -144,69 +135,52 @@ export default function RegisterScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </BrandBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
-  },
-  scrollContent: {
+  content: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 28,
     paddingVertical: 40,
+    gap: spacing.xxl,
+  },
+  brand: {
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#e94560',
-    textAlign: 'center',
-    marginBottom: 8,
+    fontSize: 30,
+    fontWeight: '800',
+    color: colors.textSoft,
+    marginTop: spacing.md,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#aaa',
-    textAlign: 'center',
-    marginBottom: 32,
+    fontSize: 15,
+    color: colors.textSecondary,
   },
   form: {
-    gap: 14,
+    gap: spacing.md,
   },
   input: {
-    backgroundColor: '#16213e',
-    borderRadius: 12,
+    backgroundColor: colors.glass,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.lg,
     padding: 16,
     fontSize: 16,
-    color: '#fff',
-    borderWidth: 1,
-    borderColor: '#0f3460',
-  },
-  button: {
-    backgroundColor: '#e94560',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+    color: colors.text,
   },
   linkText: {
-    color: '#aaa',
+    color: colors.textSecondary,
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: spacing.md,
     fontSize: 14,
   },
   linkBold: {
-    color: '#e94560',
-    fontWeight: '600',
+    color: colors.cyan,
+    fontWeight: '700',
   },
 });

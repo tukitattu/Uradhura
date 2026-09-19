@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Post } from '../lib/types';
+import { colors, radius } from '../theme';
 
 interface Props {
   post: Post;
@@ -53,8 +54,10 @@ export default function PostCard({ post, onLike, onPress }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#16213e',
-    borderRadius: 12,
+    backgroundColor: colors.glass,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.lg,
     marginHorizontal: 16,
     marginBottom: 12,
     padding: 16,
@@ -74,7 +77,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#e94560',
+    backgroundColor: colors.violet,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -86,15 +89,15 @@ const styles = StyleSheet.create({
   displayName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: colors.text,
   },
   time: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textMuted,
   },
   content: {
     fontSize: 14,
-    color: '#ddd',
+    color: colors.textSecondary,
     lineHeight: 20,
     marginBottom: 12,
   },
@@ -112,7 +115,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 16,
     borderTopWidth: 1,
-    borderTopColor: '#0f346030',
+    borderTopColor: colors.border,
     paddingTop: 12,
   },
   actionButton: {
@@ -121,9 +124,9 @@ const styles = StyleSheet.create({
   },
   actionText: {
     fontSize: 14,
-    color: '#aaa',
+    color: colors.textSecondary,
   },
   actionTextActive: {
-    color: '#e94560',
+    color: colors.roseDeep,
   },
 });

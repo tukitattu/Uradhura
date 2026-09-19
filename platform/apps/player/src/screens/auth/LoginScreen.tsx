@@ -5,13 +5,14 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { BrandBackground } from '../../components/ui/BrandBackground';
+import { BrandAsset } from '../../lib/assets/BrandAsset';
+import { BrandButton } from '../../components/ui/BrandButton';
+import { colors, radius, spacing } from '../../theme';
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -57,19 +58,18 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <BrandBackground assetKey="bg.home.default" overlay={0.62} bottomScrim={false}>
       <View style={styles.content}>
-        <Text style={styles.title}>Uradhura</Text>
-        <Text style={styles.subtitle}>Welcome back</Text>
+        <View style={styles.brand}>
+          <BrandAsset assetKey="logo.uradhura-logo" size={150} />
+          <Text style={styles.subtitle}>Welcome back to the arena</Text>
+        </View>
 
         <View style={styles.form}>
           <TextInput
             style={styles.input}
             placeholder="Email"
-            placeholderTextColor="#666"
+            placeholderTextColor={colors.textMuted}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -79,93 +79,63 @@ export default function LoginScreen({ navigation }: Props) {
           <TextInput
             style={styles.input}
             placeholder="Password"
-            placeholderTextColor="#666"
+            placeholderTextColor={colors.textMuted}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
           />
 
-          <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Log In</Text>
-            )}
-          </TouchableOpacity>
+          <BrandButton label="Log In" onPress={handleLogin} loading={isLoading} />
 
           <TouchableOpacity onPress={() => navigation.navigate('Register')}>
             <Text style={styles.linkText}>
-              Don't have an account? <Text style={styles.linkBold}>Sign Up</Text>
+              New to Uradhura? <Text style={styles.linkBold}>Create account</Text>
             </Text>
           </TouchableOpacity>
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </BrandBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
-  },
   content: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 28,
+    paddingVertical: 40,
+    gap: spacing.xxl,
   },
-  title: {
-    fontSize: 40,
-    fontWeight: 'bold',
-    color: '#e94560',
-    textAlign: 'center',
-    marginBottom: 8,
+  brand: {
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   subtitle: {
-    fontSize: 18,
-    color: '#aaa',
-    textAlign: 'center',
-    marginBottom: 40,
+    fontSize: 16,
+    color: colors.textSecondary,
+    letterSpacing: 0.3,
+    marginTop: spacing.sm,
   },
   form: {
-    gap: 16,
+    gap: spacing.md,
   },
   input: {
-    backgroundColor: '#16213e',
-    borderRadius: 12,
+    backgroundColor: colors.glass,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.lg,
     padding: 16,
     fontSize: 16,
-    color: '#fff',
-    borderWidth: 1,
-    borderColor: '#0f3460',
-  },
-  button: {
-    backgroundColor: '#e94560',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+    color: colors.text,
   },
   linkText: {
-    color: '#aaa',
+    color: colors.textSecondary,
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: spacing.md,
     fontSize: 14,
   },
   linkBold: {
-    color: '#e94560',
-    fontWeight: '600',
+    color: colors.cyan,
+    fontWeight: '700',
   },
 });

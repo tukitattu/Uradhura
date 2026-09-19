@@ -47,8 +47,8 @@ export default function PlayingCard({ rank, suit, faceUp, delayMs = 0, size = 46
           width: size,
           height,
           transform: [{ scaleY }],
-          backgroundColor: shown ? '#f7f7f7' : '#e94560',
-          borderColor: highlight ? '#ffd700' : '#0f3460',
+          backgroundColor: shown ? '#f7f7f7' : '#e11d48',
+          borderColor: highlight ? '#ffd700' : '#24395f',
         },
       ]}
     >

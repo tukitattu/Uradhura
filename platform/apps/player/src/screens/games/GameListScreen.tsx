@@ -1,23 +1,17 @@
 import React, { useState, useMemo } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  RefreshControl,
-} from 'react-native';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
 import { useGames } from '../../hooks/useGames';
 import GameCard from '../../components/GameCard';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import EmptyState from '../../components/EmptyState';
+import { BrandScreen } from '../../components/ui/BrandScreen';
 import { Game, GameCategory } from '../../lib/types';
+import { colors, radius, spacing, backgroundKeys } from '../../theme';
 
 const CATEGORIES: { key: GameCategory | 'all'; label: string }[] = [
   { key: 'all', label: 'All' },
-  { key: 'classic', label: 'Classic' },
   { key: 'card', label: 'Cards' },
+  { key: 'classic', label: 'Classic' },
   { key: 'dice', label: 'Dice' },
   { key: 'wheel', label: 'Wheel' },
   { key: 'lottery', label: 'Lottery' },
@@ -53,17 +47,15 @@ export default function GameListScreen({ navigation }: any) {
 
   if (isLoading) return <LoadingSpinner />;
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search games..."
-          placeholderTextColor="#666"
-          value={search}
-          onChangeText={setSearch}
-        />
-      </View>
+  const header = (
+    <View style={styles.head}>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search games..."
+        placeholderTextColor={colors.textMuted}
+        value={search}
+        onChangeText={setSearch}
+      />
 
       <FlatList
         data={CATEGORIES}
@@ -90,79 +82,63 @@ export default function GameListScreen({ navigation }: any) {
           </TouchableOpacity>
         )}
       />
+    </View>
+  );
 
+  return (
+    <BrandScreen background={backgroundKeys.games} title="Games" icon="icons.navigation.games" scroll={false}>
       <FlatList
         data={filteredGames}
         keyExtractor={(item) => item.id}
         numColumns={2}
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#e94560" />}
+        ListHeaderComponent={header}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.cyan} />
+        }
         ListEmptyComponent={<EmptyState message="No games found" />}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.gameItem}
+            activeOpacity={0.85}
             onPress={() => navigation.navigate('GamePlay', { gameId: item.id })}
           >
             <GameCard game={item} />
           </TouchableOpacity>
         )}
       />
-    </View>
+    </BrandScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
-  },
-  searchContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
+  head: { gap: spacing.md, paddingBottom: spacing.md },
   searchInput: {
-    backgroundColor: '#16213e',
-    borderRadius: 12,
+    backgroundColor: colors.glass,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.lg,
     padding: 14,
     fontSize: 16,
-    color: '#fff',
-    borderWidth: 1,
-    borderColor: '#0f3460',
+    color: colors.text,
   },
-  categoryList: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    gap: 8,
-  },
+  categoryList: { gap: spacing.sm },
   categoryChip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#16213e',
+    borderRadius: radius.pill,
+    backgroundColor: colors.glass,
     borderWidth: 1,
-    borderColor: '#0f3460',
+    borderColor: colors.border,
   },
   categoryChipActive: {
-    backgroundColor: '#e94560',
-    borderColor: '#e94560',
+    backgroundColor: colors.primary,
+    borderColor: colors.cyan,
   },
-  categoryText: {
-    color: '#aaa',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  categoryTextActive: {
-    color: '#fff',
-  },
-  list: {
-    padding: 16,
-  },
-  row: {
-    justifyContent: 'space-between',
-  },
-  gameItem: {
-    width: '48%',
-    marginBottom: 16,
-  },
+  categoryText: { color: colors.textSecondary, fontSize: 14, fontWeight: '600' },
+  categoryTextActive: { color: '#fff' },
+  list: { paddingBottom: 40 },
+  row: { justifyContent: 'space-between', marginBottom: spacing.md },
+  gameItem: { width: '48%' },
 });

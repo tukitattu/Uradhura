@@ -4,7 +4,7 @@ import { GameRendererProps } from './types';
 import { optionEmoji, formatMultiplier } from '../../../lib/game';
 import { WheelResultData } from '../../../lib/types';
 
-const FALLBACK_PALETTE = ['#e94560', '#f5a623', '#4ecca3', '#7b61ff', '#2ea4ff', '#ff6fb5', '#f7e05e', '#ff8a5c'];
+const FALLBACK_PALETTE = ['#e11d48', '#f5a623', '#4ecca3', '#7b61ff', '#2ea4ff', '#ff6fb5', '#f7e05e', '#ff8a5c'];
 
 export default function WheelRenderer({ round, options, lastResult }: GameRendererProps) {
   const width = Dimensions.get('window').width;
@@ -72,7 +72,7 @@ export default function WheelRenderer({ round, options, lastResult }: GameRender
             borderRadius: size / 2,
             overflow: 'hidden',
             transform: [{ rotate: spin.interpolate({ inputRange: [0, 360], outputRange: ['0deg', '360deg'] }) }],
-            backgroundColor: '#1a1a2e',
+            backgroundColor: '#0a1220',
           }}
         >
           {segments.map((option, index) => {
@@ -171,9 +171,9 @@ const styles = StyleSheet.create({
     top: '50%',
     marginLeft: -38,
     marginTop: -38,
-    backgroundColor: '#16213e',
+    backgroundColor: '#16243f',
     borderWidth: 2,
-    borderColor: '#0f3460',
+    borderColor: '#24395f',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   pointerText: {
-    color: '#e94560',
+    color: '#e11d48',
     fontSize: 20,
   },
   segmentIcon: {
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#16213e',
+    backgroundColor: '#16243f',
     borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 5,
