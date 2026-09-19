@@ -1,0 +1,39 @@
+name: Production Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm install
+          cd gaming-platform && npm install
+
+      - name: Build frontend
+        run: |
+          cd gaming-platform/frontend && npm run build
+
+      - name: Build backend
+        run: |
+          cd gaming-platform/backend && npm run build
+
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deployment placeholder
+        run: |
+          echo "Deploy to VPS after production env and SSH credentials are configured."

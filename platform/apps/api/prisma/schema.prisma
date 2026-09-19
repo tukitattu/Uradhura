@@ -1,0 +1,1776 @@
+// ============================================================
+// URADHURA GAMING + SOCIAL PLATFORM — COMPLETE DATABASE SCHEMA
+// Step 1: Database Foundation (PostgreSQL 16)
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// AUTHENTICATION & RBAC
+// ============================================================
+
+model AdminUser {
+  id            String    @id @default(uuid())
+  username      String    @unique
+  email         String    @unique
+  passwordHash  String
+  firstName     String?
+  lastName      String?
+  avatar        String?
+  isActive      Boolean   @default(true)
+  suspendedAt   DateTime?
+  suspendedReason String?
+  createdBy     String?   // super admin who created this account
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  roles         AdminUserRole[]
+  refreshTokens RefreshToken[]
+  gameAssignments    AdminGame[]
+  permissionOverrides AdminPermission[]
+  subscription  AdminSubscription?
+  invoices      AdminInvoice[]
+  commissions   AdminCommission[]
+  moderationActions ModerationAction[] @relation("ModerationAdmin")
+  updatedWithdrawalRules WithdrawalRule[]    @relation("WithdrawalRuleUpdatedBy")
+  grantedWithdrawalOverrides PlayerWithdrawalOverride[] @relation("WithdrawalOverrideGrantedBy")
+  reviewedWithdrawals   WithdrawalRequest[]  @relation("WithdrawalRequestReviewer")
+  updatedTeenPattiConfigs TeenPattiConfig[]  @relation("TeenPattiConfigUpdatedBy")
+  createdAssets      Asset[] @relation("AssetCreator")
+  updatedAssets      Asset[] @relation("AssetUpdater")
+  reviewedAuthorizationRequests AdminAuthorizationRequest[] @relation("AuthorizationReviewer")
+
+  @@map("admin_users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique // super_admin, admin, game_operator, finance, moderator, support, viewer
+  displayName String
+  description String?
+  isSystem    Boolean  @default(false) // System roles cannot be deleted
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       AdminUserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  resource    String   // games, players, wallet, economy, live, chat, moderation, etc.
+  action      String   // view, create, edit, delete, configure, publish, approve, override, export, moderate
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles       RolePermission[]
+  admins      AdminPermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model AdminUserRole {
+  id        String   @id @default(uuid())
+  adminId   String
+  roleId    String
+  grantedBy String?
+  grantedAt DateTime @default(now())
+
+  admin     AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  role      Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([adminId, roleId])
+  @@map("admin_user_roles")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+// Per-admin game assignment. An admin can only operate on assigned games.
+model AdminGame {
+  id        String   @id @default(uuid())
+  adminId   String
+  gameId    String
+  canView   Boolean  @default(true)
+  canEdit   Boolean  @default(false)
+  grantedBy String?
+  grantedAt DateTime @default(now())
+
+  admin     AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  game      Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([adminId, gameId])
+  @@index([gameId])
+  @@map("admin_games")
+}
+
+// Player → admin promotion request, reviewed by a super_admin (two-step
+// approval workflow from docs/admin-authorization-flow.md). Every decision
+// is immutable and audited.
+model AdminAuthorizationRequest {
+  id                   String   @id @default(uuid())
+  playerId             String
+  requestedRole        String   @default("admin") // admin, game_operator, finance, moderator, support, viewer
+  requestedPermissions String   @default("[]")    // JSON array of "resource:action" strings
+  notes                String?
+  status               String   @default("pending") // pending, approved, rejected
+  reviewedById         String?
+  reviewedAt           DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  player    Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  reviewedBy AdminUser? @relation("AuthorizationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([playerId, status])
+  @@map("admin_authorization_requests")
+}
+
+// Per-admin permission override (grant or revoke) on top of role permissions.
+model AdminPermission {
+  id           String   @id @default(uuid())
+  adminId      String
+  permissionId String
+  effect       String   @default("allow") // allow | deny
+  grantedBy    String?
+  createdAt    DateTime @default(now())
+
+  admin        AdminUser  @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([adminId, permissionId])
+  @@map("admin_permissions")
+}
+
+// Monthly access / commission plan offered to admins by the super admin.
+model AdminPlan {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  description     String?
+  currency        String   @default("USD")
+  monthlyFeeCents Int      @default(0)
+  commissionRate  Decimal  @default(0) // percent of the admin's game house earnings
+  maxGames        Int?     // null = unlimited
+  features        String?  // JSON feature list
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  subscriptions   AdminSubscription[]
+
+  @@map("admin_plans")
+}
+
+model AdminSubscription {
+  id                 String    @id @default(uuid())
+  adminId            String    @unique
+  planId             String
+  status             String    @default("active") // active, past_due, cancelled, expired
+  paymentStatus      String    @default("unpaid") // unpaid, paid, overdue
+  startedAt          DateTime  @default(now())
+  currentPeriodStart DateTime  @default(now())
+  currentPeriodEnd   DateTime?
+  accessExpiresAt    DateTime?
+  lastPaymentAt      DateTime?
+  nextPaymentDueAt   DateTime?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  admin              AdminUser      @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  plan               AdminPlan      @relation(fields: [planId], references: [id])
+  invoices           AdminInvoice[]
+
+  @@index([planId])
+  @@index([status, currentPeriodEnd])
+  @@map("admin_subscriptions")
+}
+
+model AdminInvoice {
+  id             String    @id @default(uuid())
+  adminId        String
+  subscriptionId String?
+  currency       String    @default("USD")
+  amountCents    Int
+  status         String    @default("unpaid") // unpaid, paid, void, refunded
+  periodStart    DateTime
+  periodEnd      DateTime
+  dueAt          DateTime?
+  paidAt         DateTime?
+  externalRef    String?
+  metadata       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  admin          AdminUser         @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  subscription   AdminSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([adminId, createdAt])
+  @@index([status, dueAt])
+  @@map("admin_invoices")
+}
+
+// Commission owed to an admin for a billing period, computed from settled rounds.
+model AdminCommission {
+  id             String   @id @default(uuid())
+  adminId        String
+  gameId         String?
+  periodStart    DateTime
+  periodEnd      DateTime
+  turnover       Decimal  @default(0)
+  houseEarnings  Decimal  @default(0)
+  commissionRate Decimal  @default(0)
+  commissionAmount Decimal @default(0)
+  currency       String   @default("coins")
+  status         String   @default("pending") // pending, approved, paid, void
+  paidAt         DateTime?
+  metadata       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  admin          AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  game           Game?     @relation(fields: [gameId], references: [id], onDelete: SetNull)
+
+  @@unique([adminId, gameId, periodStart, periodEnd])
+  @@index([status, periodEnd])
+  @@map("admin_commissions")
+}
+
+// ============================================================
+// PLAYERS
+// ============================================================
+
+model Player {
+  id              String    @id @default(uuid())
+  username        String    @unique
+  email           String?   @unique
+  phone           String?   @unique
+  passwordHash    String
+  displayName     String?
+  avatar          String?
+  avatarFrame     String?
+  badge           String?
+  levelId         String?
+  agencyId        String?
+  familyId        String?
+  country         String?
+  language        String    @default("en")
+  isActive        Boolean   @default(true)
+  isBanned        Boolean   @default(false)
+  banReason       String?
+  kycVerified     Boolean   @default(false)
+  withdrawalBlacklisted    Boolean @default(false)
+  withdrawalWhitelisted    Boolean @default(false)
+  withdrawalBlacklistReason String?
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  wallet          WalletAccount?
+  walletTransactions WalletTransaction[]
+  bets            GameBet[]
+  settlements     GameSettlement[]
+  refreshTokens   PlayerRefreshToken[]
+  ownedLiveRooms  LiveRoom[]
+  liveRoomMemberships RoomMember[]
+  messages        Message[]
+  sentGifts       GiftTransaction[]   @relation("Sender")
+  receivedGifts   GiftTransaction[]   @relation("Receiver")
+  posts           Post[]
+  postLikes       PostLike[]
+  postComments    PostComment[]
+  reportsFiled    Report[]            @relation("Reporter")
+  reportsTarget   Report[]            @relation("Target")
+  moderationActions ModerationAction[] @relation("ModerationTarget")
+  notifications   Notification[]
+  agencyMemberships AgencyMember[]
+  familyMemberships FamilyMember[]
+  tasks           PlayerTask[]
+  rewards         PlayerReward[]
+  rankings        RankingEntry[]
+  paymentOrders   PaymentOrder[]
+  withdrawalRequests WithdrawalRequest[] @relation("WithdrawalRequestPlayer")
+  withdrawalOverrides PlayerWithdrawalOverride[] @relation("PlayerWithdrawalOverridePlayer")
+  agency          Agency?             @relation("AgencyOwner")
+  family          Family?             @relation("FamilyOwner")
+  level           Level?              @relation(fields: [levelId], references: [id])
+  following       FollowRelation[]    @relation("Following")
+  followers       FollowRelation[]    @relation("Followers")
+  blockedUsers    BlockRelation[]     @relation("Blocker")
+  blockedBy       BlockRelation[]     @relation("Blocked")
+  playerSettings  PlayerSetting[]
+  gameSeeds       GameSeed[]
+  sentTransfers   WalletTransfer[] @relation("TransferSender")
+  receivedTransfers WalletTransfer[] @relation("TransferReceiver")
+  gameAccess      PlayerGameAccess[]
+  adminAuthorizationRequests AdminAuthorizationRequest[]
+  limits          PlayerLimit?
+  teenPattiSeats     TeenPattiSeat[]
+  teenPattiHandSeats TeenPattiSeatHand[]
+  teenPattiActions   TeenPattiAction[]
+
+  @@map("players")
+}
+
+model PlayerRefreshToken {
+  id        String   @id @default(uuid())
+  playerId  String
+  token     String   @unique
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  player    Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("player_refresh_tokens")
+}
+
+model PlayerSetting {
+  id       String @id @default(uuid())
+  playerId String
+  key      String
+  value    String // JSON string
+
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, key])
+  @@map("player_settings")
+}
+
+// ============================================================
+// WALLET & LEDGER (IMMUTABLE)
+// ============================================================
+
+model WalletAccount {
+  id           String   @id @default(uuid())
+  playerId     String   @unique
+  coinBalance  Decimal  @default(0)
+  diamondBalance Decimal @default(0)
+  totalCoinsEarned  Decimal @default(0)
+  totalCoinsSpent   Decimal @default(0)
+  totalDiamondsEarned Decimal @default(0)
+  totalDiamondsSpent  Decimal @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  player       Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+
+  @@map("wallet_accounts")
+}
+
+model WalletTransaction {
+  id              String   @id @default(uuid())
+  walletAccountId String
+  playerId        String
+  type            String   // coin_purchase, diamond_purchase, bet_debit, bet_credit, gift_send, gift_receive, reward, admin_adjustment, level_up_bonus, task_reward, agency_commission
+  currency        String   @default("coins") // coins, diamonds
+  amount          Decimal 
+  balanceBefore   Decimal 
+  balanceAfter    Decimal 
+  referenceType   String?  // game_round, gift, package, admin, reward, task
+  referenceId     String?  // ID of the related entity
+  description     String?
+  idempotencyKey  String   @unique
+  metadata        String?    // Additional context data
+  createdBy       String?  // admin ID for manual adjustments
+  createdAt       DateTime @default(now())
+
+  walletAccount   WalletAccount @relation(fields: [walletAccountId], references: [id])
+  player          Player        @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, createdAt])
+  @@index([walletAccountId, createdAt])
+  @@index([type])
+  @@map("wallet_transactions")
+}
+
+// ============================================================
+// GAMES — MASTER
+// ============================================================
+
+model Game {
+  id              String   @id @default(uuid())
+  internalCode    String   @unique // greedy_monkey, greedy_lion, teen_patti, food_wheel, three_card, slot
+  name            String
+  displayName     String
+  description     String?
+  shortDescription String?
+  category        String?  // wheel, card, slot, package
+  gameType        String?  // betting, guessing, spinning
+  status          String   @default("inactive") // inactive, active, maintenance
+  version         Int      @default(1)
+  sortOrder       Int      @default(0)
+  isFeatured      Boolean  @default(false)
+  isHot           Boolean  @default(false)
+  isRecommended   Boolean  @default(false)
+  maintenanceMessage String?
+  thumbnail       String?
+  banner          String?
+  icon            String?
+  background      String?
+  logo            String?
+  centralCharacter String?
+  characterAnimation String?
+  characterName   String?
+  rules           String?    // Game rules as structured JSON
+  helpContent     String?    // Help/FAQ content
+  sounds          String?    // Sound configuration
+  music           String?    // Music configuration
+  theme           String?    // Theme configuration
+  colorConfig     String?    // Color configuration
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  configurations  GameConfiguration[]
+  options         GameOption[]
+  rounds          GameRound[]
+  assets          GameAsset[]
+  localizations   GameLocalization[]
+  betConfigs      GameBetConfig[]
+  seeds           GameSeed[]
+  adminAssignments AdminGame[]
+  playerAccess    PlayerGameAccess[]
+  commissions     AdminCommission[]
+
+  @@map("games")
+}
+
+model GameConfiguration {
+  id              String   @id @default(uuid())
+  gameId          String
+  version         Int      @default(1)
+  houseEdge       Decimal  @default(5.0) // percent
+  maxPayoutPerRound Decimal @default(10000)
+  jackpotWeight   Decimal  @default(1.0)
+  vipAdjustment   Decimal  @default(0.0)
+  maxDailyLossPerPlayer Decimal @default(100000)
+  bettingDurationSeconds Int @default(30)
+  roundDurationSeconds   Int @default(30)
+  resultProcessingDelayMs Int @default(5000)
+  newRoundDelayMs  Int    @default(3000)
+  minPlayers       Int    @default(0)
+  maxPlayers       Int    @default(1000)
+  isActive         Boolean @default(true)
+  configData       String?   // Game-specific configuration
+  createdBy        String? // admin user ID
+  publishedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  game             Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, version])
+  @@map("game_configurations")
+}
+
+model GameBetConfig {
+  id           String  @id @default(uuid())
+  gameId       String
+  denominations String   @default("[100,500,1000,5000,10000]") // Array of allowed bet amounts
+  minBet       Decimal @default(100)
+  maxBet       Decimal @default(1000000)
+  allowCustomBet Boolean @default(false)
+  allowMultipleSelections Boolean @default(false)
+  allowRepeatBet Boolean @default(true)
+  allowAutoBet   Boolean @default(true)
+  allowAutoPlay  Boolean @default(false)
+  maxAutoBetRounds Int @default(100)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  game         Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId])
+  @@map("game_bet_configs")
+}
+
+model GameOption {
+  id          String  @id @default(uuid())
+  gameId      String
+  name        String
+  label       String
+  icon        String?
+  image       String?
+  positionX   Float?  // X position for circular layout
+  positionY   Float?  // Y position for circular layout
+  multiplier  Decimal
+  weight      Decimal @default(1.0) // For weighted RNG
+  isHot       Boolean @default(false)
+  isRecommended Boolean @default(false)
+  sortOrder   Int     @default(0)
+  isActive    Boolean @default(true)
+  colorHex    String  @default("#ffffff")
+  metadata    String?   // Additional option data
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  game        Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  bets        GameBet[]
+  results     GameResult[]
+
+  @@map("game_options")
+}
+
+// ============================================================
+// GAME ROUNDS
+// ============================================================
+
+model GameRound {
+  id            String    @id @default(uuid())
+  gameId        String
+  roundNumber   Int
+  status        String    @default("upcoming") // upcoming, betting_open, betting_closed, result_processing, settled, closed
+  bettingOpensAt DateTime?
+  bettingEndsAt DateTime?
+  resultData    String?     // Server-generated result
+  winnerId      String?   // Winning option ID
+  winnerLabel   String?
+  totalBetAmount Decimal  @default(0)
+  totalPayout   Decimal   @default(0)
+  houseEdge     Decimal? 
+  jackpotWeight Decimal? 
+  configVersion Int?      // Which config version was used
+  metadata      String?     // Round metadata
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  settledAt     DateTime?
+  closedAt      DateTime?
+
+  game          Game          @relation(fields: [gameId], references: [id])
+  bets          GameBet[]
+  result        GameResult?
+  settlements   GameSettlement[]
+  seed          GameSeed?     @relation("RoundSeed", fields: [seedId], references: [id])
+  seedId        String?       @unique
+
+  @@unique([gameId, roundNumber])
+  @@index([gameId, status])
+  @@index([status, bettingEndsAt])
+  @@map("game_rounds")
+}
+
+// ============================================================
+// GAME BETS
+// ============================================================
+
+model GameBet {
+  id             String   @id @default(uuid())
+  roundId        String
+  playerId       String
+  optionId       String
+  amount         Decimal 
+  potentialPayout Decimal
+  status         String   @default("pending") // pending, won, lost, refunded, cancelled
+  payout         Decimal?
+  multiplierSnapshot Decimal? // Multiplier at time of bet
+  idempotencyKey String   @unique
+  txRef          String?  // Wallet transaction reference
+  metadata       String?    // Bet metadata
+  createdAt      DateTime @default(now())
+  settledAt      DateTime?
+
+  round          GameRound      @relation(fields: [roundId], references: [id])
+player        Player         @relation(fields: [playerId], references: [id])
+  option        GameOption     @relation(fields: [optionId], references: [id])
+  settlement    GameSettlement?
+
+  @@index([roundId])
+  @@index([playerId, createdAt])
+  @@index([status])
+  @@map("game_bets")
+}
+
+// ============================================================
+// GAME SEEDS (PROVABLY FAIR)
+// ============================================================
+
+model GameSeed {
+  id             String    @id @default(uuid())
+  gameId         String
+  roundId        String?   @unique
+  playerId       String?   // Player-chosen client seed; null when the platform provides it
+  clientSeed     String
+  serverSeed     String    // Revealed ONLY after rounds using it settle
+  serverSeedHash String    // SHA-256 commitment published BEFORE the betting window
+  nonce          Int       @default(0) // Incremented per use of the same seed pair
+  seedLength     Int       @default(32) // Entropy source length for this seed
+  usedAt         DateTime? // First round that consumed this seed
+  revealedAt     DateTime? // When serverSeed was disclosed for audit
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  game          Game        @relation(fields: [gameId], references: [id])
+  round         GameRound?  @relation("RoundSeed")
+  player        Player?     @relation(fields: [playerId], references: [id])
+
+  @@index([gameId, playerId, usedAt])
+  @@index([roundId])
+  @@map("game_seeds")
+}
+
+// ============================================================
+// GAME RESULTS
+// ============================================================
+
+model GameResult {
+  id           String   @id @default(uuid())
+  roundId      String   @unique
+  optionId     String   // Winning option ID
+  winningLabel String
+  resultData   String     @default("{}") // Card values, reel positions, etc.
+  processedAt  DateTime @default(now())
+  processedBy  String   @default("system") // system | admin
+  seed         String?  // RNG seed for audit
+  metadata     String?
+
+  round        GameRound @relation(fields: [roundId], references: [id])
+  option       GameOption @relation(fields: [optionId], references: [id])
+
+  @@map("game_results")
+}
+
+// ============================================================
+// GAME SETTLEMENTS
+// ============================================================
+
+model GameSettlement {
+  id          String   @id @default(uuid())
+  roundId     String
+  betId       String   @unique // Prevents double payout
+  playerId    String
+  payout      Decimal 
+  status      String   @default("pending") // pending, completed, failed
+  txRef       String?  // Wallet transaction reference
+  settledAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  round       GameRound @relation(fields: [roundId], references: [id])
+  bet         GameBet   @relation(fields: [betId], references: [id])
+  player      Player    @relation(fields: [playerId], references: [id])
+
+  @@index([roundId])
+  @@index([playerId])
+  @@map("game_settlements")
+}
+
+// ============================================================
+// GAME ASSETS
+// ============================================================
+
+model GameAsset {
+  id          String   @id @default(uuid())
+  gameId      String
+  type        String   // thumbnail, banner, icon, background, character, animation, sound, music
+  name        String
+  url         String
+  fileSize    Int?
+  mimeType    String?
+  metadata    String?    // Width, height, duration, etc.
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  game        Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@map("game_assets")
+}
+
+// ============================================================
+// GAME LOCALIZATION
+// ============================================================
+
+model GameLocalization {
+  id        String @id @default(uuid())
+  gameId    String
+  locale    String // en, es, zh, hi, ar, etc.
+  key       String // rules.title, rules.bet_button, etc.
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  game      Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, locale, key])
+  @@map("game_localizations")
+}
+
+// ============================================================
+// VIRTUAL ECONOMY
+// ============================================================
+
+model CoinPackage {
+  id            String   @id @default(uuid())
+  name          String
+  description   String?
+  priceUsd      Decimal 
+  priceLocal    Decimal?
+  currency      String   @default("USD")
+  baseCoins     Int
+  bonusCoins    Int      @default(0)
+  isSpecialOffer Boolean @default(false)
+  isPopular     Boolean  @default(false)
+  expiryDays    Int      @default(30)
+  sortOrder     Int      @default(0)
+  isActive      Boolean  @default(true)
+  isVisibleInStore Boolean @default(true)
+  image         String?
+  metadata      String?    // Store visibility, categories, etc.
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  paymentOrders PaymentOrder[]
+
+  @@map("coin_packages")
+}
+
+model DiamondPackage {
+  id            String   @id @default(uuid())
+  name          String
+  description   String?
+  priceUsd      Decimal 
+  baseDiamonds  Int
+  bonusDiamonds Int      @default(0)
+  isSpecialOffer Boolean @default(false)
+  isPopular     Boolean  @default(false)
+  sortOrder     Int      @default(0)
+  isActive      Boolean  @default(true)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("diamond_packages")
+}
+
+model Gift {
+  id          String   @id @default(uuid())
+  name        String
+  icon        String
+  animation   String?
+  coinPrice   Decimal 
+  category    String   @default("general") // general, special, seasonal, premium
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  senderRules String?    // Who can send
+  receiverRules String?  // Who can receive
+  metadata    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  transactions GiftTransaction[]
+
+  @@map("gifts")
+}
+
+model GiftTransaction {
+  id          String   @id @default(uuid())
+  giftId      String
+  senderId    String
+  receiverId  String
+  roomId      String?  // Live room ID if sent in room
+  quantity    Int      @default(1)
+  totalCost   Decimal 
+  txRef       String   @unique // Idempotency key
+  metadata    String?
+  createdAt   DateTime @default(now())
+
+  gift        Gift          @relation(fields: [giftId], references: [id])
+  sender      Player        @relation("Sender", fields: [senderId], references: [id])
+  receiver    Player        @relation("Receiver", fields: [receiverId], references: [id])
+  room        LiveRoom?     @relation(fields: [roomId], references: [id])
+
+  @@index([senderId, createdAt])
+  @@index([receiverId, createdAt])
+  @@map("gift_transactions")
+}
+
+// ============================================================
+// PAYMENTS
+// ============================================================
+
+model PaymentOrder {
+  id              String   @id @default(uuid())
+  playerId        String
+  packageId       String?
+  packageType     String   // coin, diamond
+  provider        String   // stripe, apple, google, manual, bank_transfer
+  providerOrderId String?
+  externalOrderId String?
+  currency        String   @default("USD")
+  amountCents     Int
+  tokenAmount     Int      // coins or diamonds to credit
+  status          String   @default("pending") // pending, completed, failed, refunded, expired
+  idempotencyKey  String?  @unique
+  failureReason   String?
+  receiptData     String?
+  metadata        String?
+  creditedAt      DateTime?
+  refundedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  player          Player      @relation(fields: [playerId], references: [id])
+  coinPackage     CoinPackage? @relation(fields: [packageId], references: [id])
+  webhookEvents   PaymentWebhookEvent[]
+
+  @@unique([provider, externalOrderId])
+  @@index([playerId, createdAt])
+  @@index([status, createdAt])
+  @@map("payment_orders")
+}
+
+// Idempotency + audit record for every inbound payment-provider webhook.
+// (provider, eventId) is unique so a replayed webhook is processed exactly once.
+model PaymentWebhookEvent {
+  id             String   @id @default(uuid())
+  provider       String
+  eventId        String
+  eventType      String
+  paymentOrderId String?
+  signatureValid Boolean  @default(false)
+  status         String   @default("received") // received, processed, ignored, failed
+  payload        String
+  error          String?
+  processedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  paymentOrder   PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, eventId])
+  @@index([status, createdAt])
+  @@index([paymentOrderId])
+  @@map("payment_webhook_events")
+}
+
+// Atomic, idempotent player-to-player wallet transfer.
+model WalletTransfer {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  currency   String   @default("coins")
+  amount     Decimal
+  fee        Decimal  @default(0)
+  status     String   @default("completed") // completed, reversed, failed
+  txRef      String   @unique // idempotency key
+  note       String?
+  metadata   String?
+  createdAt  DateTime @default(now())
+  reversedAt DateTime?
+
+  sender     Player @relation("TransferSender", fields: [senderId], references: [id])
+  receiver   Player @relation("TransferReceiver", fields: [receiverId], references: [id])
+
+  @@index([senderId, createdAt])
+  @@index([receiverId, createdAt])
+  @@map("wallet_transfers")
+}
+
+// Per-player game availability/eligibility (overrides global game status).
+model PlayerGameAccess {
+  id        String   @id @default(uuid())
+  playerId  String
+  gameId    String
+  isEnabled Boolean  @default(true)
+  reason    String?
+  grantedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  player    Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  game      Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, gameId])
+  @@index([gameId, isEnabled])
+  @@map("player_game_access")
+}
+
+// Responsible-gaming controls (explicit limits / self-exclusion).
+model PlayerLimit {
+  id                    String    @id @default(uuid())
+  playerId              String    @unique
+  currency              String    @default("coins")
+  dailyDepositLimitCents Int?
+  dailyLossLimit        Decimal?
+  dailyBetLimit         Decimal?
+  weeklyLossLimit       Decimal?
+  maxSessionMinutes     Int?
+  selfExcludedUntil     DateTime?
+  coolOffUntil          DateTime?
+  selfExclusionReason   String?
+  updatedBy             String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  player                Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("player_limits")
+}
+
+// ============================================================
+// LIVE ROOMS
+// ============================================================
+
+model LiveRoom {
+  id           String   @id @default(uuid())
+  hostId       String
+  title        String
+  cover        String?
+  description  String?
+  roomType     String   @default("live") // live, voice, party
+  status       String   @default("active") // active, ended, suspended
+  viewerCount  Int      @default(0)
+  maxViewers   Int      @default(10000)
+  isPrivate    Boolean  @default(false)
+  accessLevel  String   @default("public") // public, followers, private
+  region       String?  // Global, South Asia, Middle East, etc.
+  category     String?
+  tags         String?
+  settings     String?    // Room-specific settings
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  endedAt      DateTime?
+
+  host         Player        @relation(fields: [hostId], references: [id])
+  members      RoomMember[]
+  messages     Message[]
+  roomGifts    GiftTransaction[]
+  reports      Report[]
+
+  @@index([hostId])
+  @@index([status, roomType])
+  @@index([region, category])
+  @@map("live_rooms")
+}
+
+model RoomMember {
+  id        String   @id @default(uuid())
+  roomId    String
+  playerId  String
+  role      String   @default("viewer") // host, co_host, moderator, viewer
+  isMuted   Boolean  @default(false)
+  joinedAt  DateTime @default(now())
+  leftAt    DateTime?
+
+  room      LiveRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  player    Player   @relation(fields: [playerId], references: [id])
+
+  @@unique([roomId, playerId])
+  @@map("room_members")
+}
+
+// ============================================================
+// MESSAGING
+// ============================================================
+
+model Message {
+  id         String   @id @default(uuid())
+  roomId     String?
+  senderId   String
+  receiverId String?  // For DMs
+  type       String   @default("chat") // chat, system, notification, dm
+  content    String
+  metadata   String?
+  isDeleted  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  room       LiveRoom? @relation(fields: [roomId], references: [id])
+  sender     Player    @relation(fields: [senderId], references: [id])
+
+  @@index([roomId, createdAt])
+  @@index([senderId, createdAt])
+  @@index([receiverId, createdAt])
+  @@map("messages")
+}
+
+// ============================================================
+// SOCIAL
+// ============================================================
+
+model Post {
+  id          String   @id @default(uuid())
+  authorId    String
+  content     String?
+  imageUrl    String?
+  videoUrl    String?
+  type        String   @default("moment") // moment, story, live_clip
+  likesCount  Int      @default(0)
+  commentsCount Int    @default(0)
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  author      Player        @relation(fields: [authorId], references: [id])
+  likes       PostLike[]
+  comments    PostComment[]
+
+  @@index([authorId, createdAt])
+  @@map("posts")
+}
+
+model PostLike {
+  id        String   @id @default(uuid())
+  postId    String
+  playerId  String
+  createdAt DateTime @default(now())
+
+  post      Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  player    Player @relation(fields: [playerId], references: [id])
+
+  @@unique([postId, playerId])
+  @@map("post_likes")
+}
+
+model PostComment {
+  id        String   @id @default(uuid())
+  postId    String
+  playerId  String
+  content   String
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  post      Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  player    Player @relation(fields: [playerId], references: [id])
+
+  @@index([postId, createdAt])
+  @@map("post_comments")
+}
+
+model FollowRelation {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower    Player @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  following   Player @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@map("follow_relations")
+}
+
+model BlockRelation {
+  id         String   @id @default(uuid())
+  blockerId  String
+  blockedId  String
+  createdAt  DateTime @default(now())
+
+  blocker    Player @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked    Player @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@map("block_relations")
+}
+
+// ============================================================
+// AGENCIES & FAMILIES
+// ============================================================
+
+model Agency {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  logo        String?
+  ownerId     String   @unique
+  level       Int      @default(1)
+  memberCount Int      @default(0)
+  isActive    Boolean  @default(true)
+  settings    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner       Player          @relation("AgencyOwner", fields: [ownerId], references: [id])
+  members     AgencyMember[]
+
+  @@map("agencies")
+}
+
+model AgencyMember {
+  id        String   @id @default(uuid())
+  agencyId  String
+  playerId  String
+  role      String   @default("member") // owner, admin, member
+  joinedAt  DateTime @default(now())
+
+  agency    Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  player    Player @relation(fields: [playerId], references: [id])
+
+  @@unique([agencyId, playerId])
+  @@map("agency_members")
+}
+
+model Family {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  logo        String?
+  ownerId     String   @unique
+  memberCount Int      @default(0)
+  level       Int      @default(1)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner       Player          @relation("FamilyOwner", fields: [ownerId], references: [id])
+  members     FamilyMember[]
+
+  @@map("families")
+}
+
+model FamilyMember {
+  id        String   @id @default(uuid())
+  familyId  String
+  playerId  String
+  role      String   @default("member") // owner, admin, member
+  joinedAt  DateTime @default(now())
+
+  family    Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  player    Player @relation(fields: [playerId], references: [id])
+
+  @@unique([familyId, playerId])
+  @@map("family_members")
+}
+
+// ============================================================
+// LEVELS, MEDALS, REWARDS, TASKS
+// ============================================================
+
+model Level {
+  id          String   @id @default(uuid())
+  level       Int      @unique
+  name        String
+  requiredXp  Int
+  badge       String?
+  frame       String?
+  rewards     String?    // Rewards for reaching this level
+  createdAt   DateTime @default(now())
+
+  players     Player[]
+
+  @@map("levels")
+}
+
+model Medal {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  icon        String
+  category    String   @default("achievement") // achievement, special, event
+  rarity      String   @default("common") // common, rare, epic, legendary
+  criteria    String?    // Requirements to earn
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@map("medals")
+}
+
+model Reward {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  type        String   // login_bonus, level_up, task_complete, achievement, event
+  currency    String   @default("coins")
+  amount      Int
+  criteria    String?    // Requirements to claim
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  playerRewards PlayerReward[]
+
+  @@map("rewards")
+}
+
+model PlayerReward {
+  id        String   @id @default(uuid())
+  playerId  String
+  rewardId  String
+  status    String   @default("pending") // pending, claimed, expired
+  claimedAt DateTime?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+
+  player    Player @relation(fields: [playerId], references: [id])
+  reward    Reward @relation(fields: [rewardId], references: [id])
+
+  @@unique([playerId, rewardId])
+  @@map("player_rewards")
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  type        String   // daily, weekly, achievement, event
+  category    String?  // game, social, economy
+  criteria    String     // What needs to be done
+  rewardType  String   @default("coins")
+  rewardAmount Int
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  playerTasks PlayerTask[]
+
+  @@map("tasks")
+}
+
+model PlayerTask {
+  id        String   @id @default(uuid())
+  playerId  String
+  taskId    String
+  progress  Int      @default(0)
+  target    Int      @default(1)
+  status    String   @default("in_progress") // in_progress, completed, claimed
+  completedAt DateTime?
+  claimedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  player    Player @relation(fields: [playerId], references: [id])
+  task      Task   @relation(fields: [taskId], references: [id])
+
+  @@unique([playerId, taskId])
+  @@map("player_tasks")
+}
+
+// ============================================================
+// RANKINGS
+// ============================================================
+
+model Ranking {
+  id          String   @id @default(uuid())
+  name        String
+  type        String   // global, game, regional, agency
+  gameId      String?  // For game-specific rankings
+  region      String?  // For regional rankings
+  period      String   @default("daily") // daily, weekly, monthly, all_time
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  entries     RankingEntry[]
+
+  @@map("rankings")
+}
+
+model RankingEntry {
+  id        String   @id @default(uuid())
+  rankingId String
+  playerId  String
+  score     Int      @default(0)
+  rank      Int?
+  metadata  String?    // Additional ranking data
+  period    String   // The period this entry is for
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ranking   Ranking @relation(fields: [rankingId], references: [id], onDelete: Cascade)
+  player    Player  @relation(fields: [playerId], references: [id])
+
+  @@unique([rankingId, playerId, period])
+  @@index([rankingId, score])
+  @@map("ranking_entries")
+}
+
+// ============================================================
+// MODERATION & REPORTS
+// ============================================================
+
+model Report {
+  id          String   @id @default(uuid())
+  reporterId  String
+  targetType  String   // player, live_room, post, message, game
+  targetId    String
+  reason      String
+  category    String   @default("general") // spam, harassment, cheating, inappropriate, other
+  description String?
+  status      String   @default("pending") // pending, reviewing, resolved, dismissed
+  assignedTo  String?  // Admin user ID
+  resolution  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  resolvedAt  DateTime?
+
+  reporter    Player   @relation("Reporter", fields: [reporterId], references: [id])
+  target      Player?  @relation("Target", fields: [targetId], references: [id])
+  room        LiveRoom? @relation(fields: [roomId], references: [id])
+  roomId      String?
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+  @@map("reports")
+}
+
+model ModerationAction {
+  id          String   @id @default(uuid())
+  adminId     String?  // Admin who performed action
+  targetType  String   // player, room, post, message
+  targetId    String
+  action      String   // warn, mute, ban, unban, delete, restrict
+  reason      String?
+  duration    Int?     // Duration in hours for temporary actions
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  admin       AdminUser? @relation(fields: [adminId], references: [id], name: "ModerationAdmin")
+  player      Player     @relation(fields: [targetId], references: [id], name: "ModerationTarget")
+
+  @@index([targetType, targetId])
+  @@map("moderation_actions")
+}
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+
+model Notification {
+  id        String   @id @default(uuid())
+  playerId  String
+  type      String   // system, game, social, reward, alert
+  title     String
+  content   String
+  data      String?    // Additional notification data
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  player    Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, isRead, createdAt])
+  @@map("notifications")
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?  // Free-form actor reference (player or admin ID); validated by services
+  actorType  String   @default("system") // player, admin, system
+  action     String   // BET_PLACED, ROUND_SETTLED, ADMIN_OVERRIDE, etc.
+  entityType String   // bet, round, player, config, wallet
+  entityId   String?
+  before     String?    // Snapshot before
+  after      String?    // Snapshot after
+  ipAddress  String?
+  userAgent  String?
+  requestId  String?
+  metadata   String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+// ============================================================
+// SYSTEM SETTINGS
+// ============================================================
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  category    String   @default("general")
+  description String?
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model FeatureFlag {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  label       String
+  description String?
+  enabled     Boolean  @default(true)
+  allowedRoles String  @default("super_admin")
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("feature_flags")
+}
+
+// ============================================================
+// DESIGN TOKENS (Frontend Theming)
+// ============================================================
+
+model DesignToken {
+  id        String   @id @default(uuid())
+  scope     String   // global, page:games, page:admin, game:greedy_monkey
+  key       String   // primaryColor, bgGradient, cardBg
+  value     String   // hex, gradient, css string
+  label     String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([scope, key])
+  @@map("design_tokens")
+}
+
+model GameBranding {
+  id            String   @id @default(uuid())
+  gameSlug      String   @unique
+  displayName   String?
+  logoUrl       String?
+  iconEmoji     String?
+  primaryColor  String?
+  accentColor   String?
+  bgGradient    String?
+  tagline       String?
+  isVisible     Boolean  @default(true)
+  updatedBy     String?
+  updatedAt     DateTime @updatedAt
+
+  @@map("game_branding")
+}
+
+model TeenPattiTable {
+  id              String   @id @default(uuid())
+  tableCode       String   @unique
+  title           String
+  bootAmount      Int      @default(10)
+  chaalCap        Int      @default(4)
+  maxSeats        Int      @default(6)
+  minPlayers      Int      @default(3)
+  minBuyIn        Int      @default(100)
+  maxBuyIn        Int      @default(10000)
+  botFill         Boolean  @default(true)
+  status          String   @default("open") // open, playing, closed
+  serverSeed      String
+  serverSeedHash  String
+  nextHandNo      Int      @default(1)
+  dealerSeatNo    Int      @default(1)
+  handInPlay      Boolean  @default(false)
+  houseReserve    Int      @default(50000) // house-backed chips available to fund bots
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  seats           TeenPattiSeat[]
+  hands           TeenPattiHand[]
+
+  @@index([status])
+  @@map("teen_patti_tables")
+}
+
+// Global, singleton (id='global') dynamic Teen Patti rule set.
+// Every change bumps `version` so runtimes can re-resolve caches.
+model TeenPattiConfig {
+  id          String    @id @default("global")
+  version     Int       @default(1)
+  config      Json
+  updatedById String?
+  updatedAt   DateTime  @updatedAt
+
+  updatedBy   AdminUser? @relation("TeenPattiConfigUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("teen_patti_configs")
+}
+
+model TeenPattiSeat {
+  id        String   @id @default(uuid())
+  tableId   String
+  seatNo    Int
+  playerId  String?
+  name      String
+  isBot     Boolean  @default(false)
+  chips     Int      @default(0)
+  isSeated  Boolean  @default(true)
+  joinedAt  DateTime @default(now())
+  leftAt    DateTime?
+  clientSeed String? // player-chosen client seed for the next dealt hand
+
+  table     TeenPattiTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  player    Player?        @relation(fields: [playerId], references: [id], onDelete: SetNull)
+
+  @@unique([tableId, seatNo])
+  @@unique([playerId, tableId])
+  @@index([playerId])
+  @@map("teen_patti_seats")
+}
+
+model TeenPattiHand {
+  id             String          @id @default(uuid())
+  tableId        String
+  handNo         Int
+  status         String          @default("betting") // betting, finished
+  dealerSeatNo   Int
+  currentTurnSeatNo Int?
+  pot            Int             @default(0)
+  stake          Int             @default(0)
+  stakeLevel     Int             @default(0)
+  rakeCoins      Int             @default(0)
+  rakePercent    Int             @default(0)
+  seedCommitHash String
+  seedClientSeed String
+  seedNonce      Int             @default(0)
+  seedServerSeed String?
+  finishedAt     DateTime?
+  createdAt      DateTime        @default(now())
+
+  table          TeenPattiTable  @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  actions        TeenPattiAction[]
+  seatHands      TeenPattiSeatHand[]
+
+  @@unique([tableId, handNo])
+  @@index([status])
+  @@map("teen_patti_hands")
+}
+
+model TeenPattiSeatHand {
+  id          String          @id @default(uuid())
+  handId      String
+  seatNo      Int
+  playerId    String?
+  isBot       Boolean         @default(false)
+  cards       String          // JSON [{r,s},...] server-only, never broadcast
+  isSeen      Boolean         @default(false)
+  chipsIn     Int             @default(0)
+  committed   Int             @default(0)
+  folded      Boolean         @default(false)
+  allIn       Boolean         @default(false)
+  result      Int             @default(0) // net chips won/lost this hand
+
+  hand        TeenPattiHand   @relation(fields: [handId], references: [id], onDelete: Cascade)
+  player      Player?         @relation(fields: [playerId], references: [id], onDelete: SetNull)
+
+  @@unique([handId, seatNo])
+  @@index([playerId])
+  @@map("teen_patti_seat_hands")
+}
+
+model TeenPattiAction {
+  id         String          @id @default(uuid())
+  handId     String
+  handOrder  Int
+  seatNo     Int
+  playerId   String?
+  isBot      Boolean         @default(false)
+  kind       String          // fold, see, blind, chaal, raise, allin, show
+  amount     Int             @default(0)
+  pot        Int             @default(0)
+  stake      Int             @default(0)
+  isSeen     Boolean         @default(false)
+  createdAt  DateTime        @default(now())
+
+  hand       TeenPattiHand   @relation(fields: [handId], references: [id], onDelete: Cascade)
+  player     Player?         @relation(fields: [playerId], references: [id], onDelete: SetNull)
+
+  @@unique([handId, handOrder])
+  @@index([handId, createdAt])
+  @@map("teen_patti_actions")
+}
+
+// ============================================================
+// WITHDRAWALS (dynamic, admin-controlled)
+// ============================================================
+
+// Single-row, globally applied withdrawal policy. All values are edited live
+// from the admin panel and enforced exclusively server-side.
+model WithdrawalRule {
+  id                  String   @id @default(uuid())
+  enabled             Boolean  @default(true)
+  currency            String   @default("BDT")
+  regionCode          String   @default("BD")
+  coinToCurrencyRate  Decimal  @default(100) // coins that equal 1 currency unit (e.g. 100 coins = ৳1)
+  minAmountCoins      Int      @default(100)
+  maxAmountCoins      Int      @default(50000)
+  maxMonthlyCoins     Int      @default(200000)
+  cooldownHours       Int      @default(24)
+  timeWindowStart     String   @default("00:00") // "HH:mm" 24h, server-local
+  timeWindowEnd       String   @default("23:59")
+  allowedDays         String   @default("[1,2,3,4,5,6,0]") // JSON array, 0 = Sunday
+  autoApproveMaxCoins Int      @default(0) // amounts at/below this skip the queue
+  manualApprovalRequired Boolean @default(true)
+  feePercent          Decimal  @default(0)
+  kycRequired         Boolean  @default(false)
+  firstWithdrawalOnly Boolean  @default(false)
+  slaHours            Int      @default(48)
+  regionRestrictions  String   @default("[]") // JSON array of allowed country codes; [] = all
+  tierCoinValues      String   @default("{}") // JSON per-tier coins-per-unit overrides, keyed by level name
+  blacklistEnabled    Boolean  @default(true)
+  whitelistEnabled    Boolean  @default(false)
+  updatedById         String?
+  updatedAt           DateTime @updatedAt
+  updatedBy           AdminUser? @relation("WithdrawalRuleUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("withdrawal_rules")
+}
+
+// A payout method (bKash, Nagad, bank, UPI, USDT...). Toggleable per method.
+model WithdrawalMethod {
+  id              String   @id @default(uuid())
+  methodCode      String   @unique // bkash, nagad, bank, upi, usdt
+  label           String
+  enabled         Boolean  @default(true)
+  currency        String   @default("BDT")
+  minAmountCoins  Int      @default(100)
+  maxAmountCoins  Int      @default(50000)
+  feePercent      Decimal  @default(0) // overrides the global rule fee for this method
+  accountLabel    String   @default("Account") // e.g. "bKash number"
+  minAccountLength Int     @default(0)
+  maxAccountLength Int     @default(50)
+  sortOrder       Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  requests        WithdrawalRequest[]
+
+  @@map("withdrawal_methods")
+}
+
+// A player's withdrawal request. Coins are held in the wallet ledger at
+// request time (immutable debit) and refunded transactionally on rejection
+// or cancellation. Every status change is audited.
+model WithdrawalRequest {
+  id            String   @id @default(uuid())
+  playerId      String
+  amountCoins   Int
+  feeCoins      Int      @default(0)
+  netCoins      Int
+  rateApplied   Decimal  @default(100)
+  amountCurrency Decimal // net fiat = netCoins / rateApplied
+  currency      String   @default("BDT")
+  methodCode    String
+  accountHandle String
+  accountName   String?
+  status        String   @default("pending") // pending, auto_approved, approved, partially_approved, rejected, cancelled
+  autoApproved  Boolean  @default(false)
+  reviewNote    String?
+  approvedAmountCoins Int?
+  monthlyPeriod String   // "2026-09"
+  holdTxId      String?
+  refundTxId    String?
+  reviewedById  String?
+  reviewedAt    DateTime?
+  suspicious    Boolean  @default(false)
+  suspiciousReason String?
+  idempotencyKey String  @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  player        Player      @relation("WithdrawalRequestPlayer", fields: [playerId], references: [id], onDelete: Cascade)
+  reviewedBy    AdminUser?  @relation("WithdrawalRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  method        WithdrawalMethod @relation(fields: [methodCode], references: [methodCode])
+
+  @@index([playerId, monthlyPeriod])
+  @@index([status, createdAt])
+  @@index([reviewedById, createdAt])
+  @@map("withdrawal_requests")
+}
+
+// Per-player withdrawal overrides granted by an admin (e.g. custom monthly
+// ceiling or a custom coins-per-unit rate for a VIP).
+model PlayerWithdrawalOverride {
+  id            String   @id @default(uuid())
+  playerId      String   @unique
+  maxMonthlyCoins Int?
+  coinRateOverride Decimal? // coins per 1 currency unit for this player
+  note          String?
+  grantedById   String?
+  grantedAt     DateTime @default(now())
+
+  player        Player    @relation("PlayerWithdrawalOverridePlayer", fields: [playerId], references: [id], onDelete: Cascade)
+  grantedBy     AdminUser? @relation("WithdrawalOverrideGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@index([grantedById])
+  @@map("player_withdrawal_overrides")
+}
+
+// ============================================================
+// ASSET REGISTRY (game/media catalog for the player APK + admin)
+// The registry is the single source of truth for how runtime assets
+// are resolved. Assets ship bundled inside the player APK (isBundled)
+// AND are re-registered here so super admins can publish remote
+// replacements (gifts, frames, badges, room backgrounds, promotional
+// art...) without shipping an APK update. The public manifest at
+// GET /assets/manifest is consumed by the APK with version-based caching.
+// ============================================================
+model Asset {
+  id           String    @id @default(uuid()) // assetId
+  key          String    @unique // stable registry key, e.g. "bg.home.default" — never re-used
+  name         String
+  description  String?
+  category     String    // dot-path category: "bg.home", "frame.avatar", "gifts.basic", ...
+  type         String    // image/svg+xml, image/webp, image/png, image/avif, image/jpeg, application/lottie+json, audio/*, font/*
+  format       String?   // svg, webp, png, avif, jpg, lottie, mp3, wav, ttf, otf, woff2
+  extension    String    // file extension of the stored payload (used for cache-busted URLs)
+  url          String?   // served URL path (absent for bundled-only entries)
+  thumbnailUrl String?
+  version      Int       @default(1) // bumped on every replace; drives remote cache invalidation
+  status       String    @default("draft") // draft, published, disabled, archived
+  isEnabled    Boolean   @default(true) // enable/disable a published asset
+  isBundled    Boolean   @default(false) // ships inside the player APK (core assets)
+  sortOrder    Int       @default(0) // display order within (category, target)
+  target       String?   // target screen: home, live, party, games, wallet, messages, profile, crypto, global
+  scope        String?   // assignment: gameId / roomId / eventId / themeId (game/room/event)
+  localization String?   // JSON map: { "en": {...} } caption/alt + per-locale override URL
+  startsAt     DateTime? // promotional window start
+  endsAt       DateTime? // promotional window end
+  visibility   String    @default("public") // public, vip, internal, beta
+  fileName     String?   // original uploaded filename
+  mimeType     String?
+  fileSize     Int?
+  width        Int?
+  height       Int?
+  checksum     String?   // sha256 of the stored payload (integrity check on cache)
+  publishedAt  DateTime?
+  archivedAt   DateTime?
+  createdBy    String? // AdminUser id
+  updatedBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  creator      AdminUser? @relation("AssetCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  updater      AdminUser? @relation("AssetUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@index([category, status])
+  @@index([target, status])
+  @@index([status, isEnabled, startsAt, endsAt])
+  @@map("assets")
+}

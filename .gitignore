@@ -61,3 +61,26 @@ coverage/
 
 # Misc
 .vercel
+
+# Personal shell/editor config (not part of deliverables)
+.bashrc
+.bash_profile
+.zshrc
+.zprofile
+.profile
+.gitconfig
+.gitmodules
+.claude/
+.mcp.json
+.ripgreprc
+
+# Expo cache
+.expo/
+
+# Build info
+*.tsbuildinfo
+
+# Reference APK dumps (decompiled artifacts, not deliverables)
+Liveapp/
+*.apk
+*.zip

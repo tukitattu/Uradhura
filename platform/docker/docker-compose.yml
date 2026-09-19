@@ -1,0 +1,162 @@
+# ============================================================
+# GAMING + SOCIAL PLATFORM — DOCKER COMPOSE
+# Full Development Stack
+# ============================================================
+
+version: '3.8'
+
+services:
+  # ============================================================
+  # DATABASES
+  # ============================================================
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: gaming_platform_db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: gaming_platform
+      POSTGRES_USER: gaming_admin
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-super_secret_password_123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gaming_admin -d gaming_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gaming_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: gaming_platform_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gaming_network
+
+  # ============================================================
+  # APPLICATIONS
+  # ============================================================
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: development
+    container_name: gaming_platform_api
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+      - "9229:9229"
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://gaming_admin:${DB_PASSWORD:-super_secret_password_123}@postgres:5432/gaming_platform
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_here_change_in_production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your_refresh_secret_here_change_in_production}
+      CORS_ORIGIN: http://localhost:3000,http://localhost:3001
+    volumes:
+      - ../apps/api/src:/app/src
+      - /app/node_modules
+      - /app/dist
+      - ../apps/api/prisma:/app/prisma
+      - ../apps/api/nest-cli.json:/app/nest-cli.json
+      - ../apps/api/tsconfig.json:/app/tsconfig.json
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: npm run start:dev
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:4000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    networks:
+      - gaming_network
+
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.admin
+      target: development
+    container_name: gaming_platform_admin
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_WS_URL: http://localhost:4000
+    volumes:
+      - ../apps/admin/src:/app/src
+      - ../apps/admin/app:/app/app
+      - ../apps/admin/public:/app/public
+      - /app/node_modules
+      - /app/.next
+      - ../apps/admin/next.config.js:/app/next.config.js
+      - ../apps/admin/tailwind.config.js:/app/tailwind.config.js
+      - ../apps/admin/postcss.config.js:/app/postcss.config.js
+    depends_on:
+      api:
+        condition: service_healthy
+    command: npm run dev
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3001 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    networks:
+      - gaming_network
+
+  # ============================================================
+  # NGINX REVERSE PROXY
+  # ============================================================
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    container_name: gaming_platform_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      api:
+        condition: service_healthy
+      admin:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - gaming_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  gaming_network:
+    driver: bridge

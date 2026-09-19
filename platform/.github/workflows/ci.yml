@@ -1,0 +1,208 @@
+# ============================================================
+# GAMING PLATFORM — CI PIPELINE
+# Runs on every push and PR to main
+# ============================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  # ============================================================
+  # JOB: Lint
+  # ============================================================
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install API dependencies
+        run: npm ci
+        working-directory: apps/api
+
+      - name: Install Admin dependencies
+        run: npm ci
+        working-directory: apps/admin
+
+      - name: Lint API
+        run: npm run lint
+        working-directory: apps/api
+
+      - name: Lint Admin
+        run: npm run lint
+        working-directory: apps/admin
+
+  # ============================================================
+  # JOB: Typecheck
+  # ============================================================
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install API dependencies
+        run: npm ci
+        working-directory: apps/api
+
+      - name: Install Admin dependencies
+        run: npm ci
+        working-directory: apps/admin
+
+      - name: Prisma Generate
+        run: npx prisma generate
+        working-directory: apps/api
+
+      - name: Typecheck API
+        run: npx tsc --noEmit
+        working-directory: apps/api
+
+      - name: Typecheck Admin
+        run: npx tsc --noEmit
+        working-directory: apps/admin
+
+  # ============================================================
+  # JOB: Test
+  # ============================================================
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: gaming_platform_test
+          POSTGRES_USER: gaming_admin
+          POSTGRES_PASSWORD: test_password_123
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gaming_admin -d gaming_platform_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://gaming_admin:test_password_123@localhost:5432/gaming_platform_test
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: test_jwt_secret_for_ci
+      JWT_REFRESH_SECRET: test_refresh_secret_for_ci
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install API dependencies
+        run: npm ci
+        working-directory: apps/api
+
+      - name: Prisma Generate
+        run: npx prisma generate
+        working-directory: apps/api
+
+      - name: Run API Tests
+        run: npm run test:cov || npm test
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://gaming_admin:test_password_123@localhost:5432/gaming_platform_test
+          REDIS_URL: redis://localhost:6379
+
+  # ============================================================
+  # JOB: Build
+  # ============================================================
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, test]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install API dependencies
+        run: npm ci
+        working-directory: apps/api
+
+      - name: Install Admin dependencies
+        run: npm ci
+        working-directory: apps/admin
+
+      - name: Prisma Generate
+        run: npx prisma generate
+        working-directory: apps/api
+
+      - name: Build API
+        run: npm run build
+        working-directory: apps/api
+
+      - name: Build Admin
+        run: npm run build
+        working-directory: apps/admin
+
+      - name: Upload API build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-dist
+          path: apps/api/dist/
+          retention-days: 1
+
+      - name: Upload Admin build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-next
+          path: |
+            apps/admin/.next/
+            apps/admin/node_modules/
+            apps/admin/package.json
+            apps/admin/next.config.js
+          retention-days: 1

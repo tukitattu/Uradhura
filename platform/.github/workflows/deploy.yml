@@ -1,0 +1,211 @@
+# ============================================================
+# GAMING PLATFORM — DEPLOY PIPELINE
+# Triggered after CI passes on main branch
+# ============================================================
+
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/gaming-platform
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  # ============================================================
+  # JOB: Build & Push Docker Images
+  # ============================================================
+  build-and-push:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      api-image: ${{ steps.meta.outputs.api-image }}
+      admin-image: ${{ steps.meta.outputs.admin-image }}
+      nginx-image: ${{ steps.meta.outputs.nginx-image }}
+      short-sha: ${{ steps.meta.outputs.short-sha }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          TIMESTAMP=$(date -u +%Y%m%d%H%M%S)
+
+          echo "short-sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "api-image=${IMAGE_PREFIX}-api:${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "api-image-latest=${IMAGE_PREFIX}-api:latest" >> "$GITHUB_OUTPUT"
+          echo "admin-image=${IMAGE_PREFIX}-admin:${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "admin-image-latest=${IMAGE_PREFIX}-admin:latest" >> "$GITHUB_OUTPUT"
+          echo "nginx-image=${IMAGE_PREFIX}-nginx:${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "nginx-image-latest=${IMAGE_PREFIX}-nginx:latest" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.api
+          target: runner
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.api-image }}
+            ${{ steps.meta.outputs.api-image-latest }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+
+      - name: Build and push Admin image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.admin
+          target: runner
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.admin-image }}
+            ${{ steps.meta.outputs.admin-image-latest }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+
+      - name: Build and push Nginx image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/nginx/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.nginx-image }}
+            ${{ steps.meta.outputs.nginx-image-latest }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================================
+  # JOB: Deploy to Production Server
+  # ============================================================
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download docker-compose.prod.yml
+        run: |
+          cat > /tmp/docker-compose.prod.yml << 'COMPOSE_EOF'
+          ${{ github.workspace }}/docker/docker-compose.prod.yml
+          COMPOSE_EOF
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+
+            # Configuration
+            COMPOSE_DIR="/opt/gaming-platform/docker"
+            IMAGE_PREFIX="${{ env.REGISTRY }}/${{ github.repository_owner }}/gaming-platform"
+            SHORT_SHA="${{ needs.build-and-push.outputs.short-sha }}"
+
+            echo "=== Deploying commit ${SHORT_SHA} ==="
+
+            # Navigate to compose directory
+            cd ${COMPOSE_DIR}
+
+            # Update environment file
+            cat > .env << EOF
+            NODE_ENV=production
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            REDIS_URL=${{ secrets.REDIS_URL }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}
+            CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}
+            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_WS_URL=${{ secrets.NEXT_PUBLIC_WS_URL }}
+            EOF
+
+            # Pull new images
+            echo "Pulling images..."
+            docker pull ${IMAGE_PREFIX}-api:${SHORT_SHA}
+            docker pull ${IMAGE_PREFIX}-admin:${SHORT_SHA}
+            docker pull ${IMAGE_PREFIX}-nginx:${SHORT_SHA}
+
+            # Tag as latest
+            docker tag ${IMAGE_PREFIX}-api:${SHORT_SHA} ${IMAGE_PREFIX}-api:latest
+            docker tag ${IMAGE_PREFIX}-admin:${SHORT_SHA} ${IMAGE_PREFIX}-admin:latest
+            docker tag ${IMAGE_PREFIX}-nginx:${SHORT_SHA} ${IMAGE_PREFIX}-nginx:latest
+
+            # Update compose file with correct image tags
+            export API_IMAGE="${IMAGE_PREFIX}-api:${SHORT_SHA}"
+            export ADMIN_IMAGE="${IMAGE_PREFIX}-admin:${SHORT_SHA}"
+            export NGINX_IMAGE="${IMAGE_PREFIX}-nginx:${SHORT_SHA}"
+
+            # Stop existing services gracefully
+            echo "Stopping existing services..."
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml down --timeout 30
+
+            # Start new services
+            echo "Starting services..."
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+              --env-file .env \
+              up -d --force-recreate --remove-orphans
+
+            # Wait for health checks
+            echo "Waiting for services to become healthy..."
+            sleep 15
+
+            # Verify deployment
+            echo "Verifying deployment..."
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
+
+            # Check health
+            for service in api admin nginx; do
+              STATUS=$(docker inspect --format='{{.State.Health.Status}}' gaming_platform_${service} 2>/dev/null || echo "unknown")
+              echo "  ${service}: ${STATUS}"
+            done
+
+            echo "=== Deployment complete ==="
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "Deployment successful for commit ${{ needs.build-and-push.outputs.short-sha }}"
+          else
+            echo "Deployment FAILED for commit ${{ needs.build-and-push.outputs.short-sha }}"
+            echo "Manual rollback may be required."
+          fi

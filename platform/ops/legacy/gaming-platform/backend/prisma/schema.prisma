@@ -1,0 +1,488 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id               String   @id @default(uuid())
+  username         String   @unique
+  email            String   @unique
+  passwordHash     String
+  role             String   @default("player") // player | admin | super_admin
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  walletAccount    WalletAccount?
+  bets             GameBet[]
+  auditLogs        AuditLog[]
+  adminRequests    AdminAuthorizationRequest[]
+  videoCallAccess  VideoCallAccess?
+  paymentOrders    PaymentOrder[]
+  adminPermissions AdminPermission[]
+  supportTickets   SupportTicket[]
+
+  @@map("players")
+}
+
+model AdminAuthorizationRequest {
+  id                  String   @id @default(uuid())
+  playerId            String
+  requestedRole       String   @default("admin")
+  requestedPermissions String? 
+  notes               String?
+  status              String   @default("pending") // pending | approved | rejected
+  reviewedBy          String?
+  reviewedAt          DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  player              Player   @relation(fields: [playerId], references: [id])
+
+  @@map("admin_authorization_requests")
+}
+
+model WalletAccount {
+  id           String   @id @default(uuid())
+  playerId     String   @unique
+  balance      Float    @default(0)
+  totalDeposit Float    @default(0)
+  totalWon     Float    @default(0)
+  totalLost    Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  player       Player   @relation(fields: [playerId], references: [id])
+  transactions WalletTransaction[]
+
+  @@map("wallet_accounts")
+}
+
+model WalletTransaction {
+  id              String   @id @default(uuid())
+  walletAccountId String
+  type            String   // deposit | debit | credit | adjustment
+  amount          Float
+  balanceBefore   Float
+  balanceAfter    Float
+  reference       String?  // bet ID or admin reference
+  description     String?
+  idempotencyKey  String   @unique
+  createdAt       DateTime @default(now())
+
+  walletAccount   WalletAccount @relation(fields: [walletAccountId], references: [id])
+
+  @@map("wallet_transactions")
+}
+
+model Game {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique // greedy | animal-wheel | teen-patti | food-wheel | three-card | slot
+  description String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  configurations       GameConfiguration[]
+  rounds               GameRound[]
+  options              GameOption[]
+  denominationConfig   GameDenominationConfig?
+  packages             GamePackage[]
+
+  @@map("games")
+}
+
+model GameConfiguration {
+  id              String   @id @default(uuid())
+  gameId          String
+  houseEdge       Float    @default(5.0)  // percent
+  maxPayoutPerRound Float  @default(10000)
+  jackpotWeight   Float    @default(1.0)
+  vipAdjustment   Float    @default(0.0)
+  maxDailyLoss    Float    @default(100000)
+  isActive        Boolean  @default(true)
+  configData      String   @default("{}") // JSON string for game-specific config
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  game            Game     @relation(fields: [gameId], references: [id])
+
+  @@map("game_configurations")
+}
+
+model GameOption {
+  id         String  @id @default(uuid())
+  gameId     String
+  label      String
+  multiplier Float
+  colorHex   String  @default("#ffffff")
+  iconUrl    String?
+  isHot      Boolean @default(false)
+  sortOrder  Int     @default(0)
+  isActive   Boolean @default(true)
+
+  game       Game    @relation(fields: [gameId], references: [id])
+  bets       GameBet[]
+
+  @@map("game_options")
+}
+
+model GameRound {
+  id            String    @id @default(uuid())
+  gameId        String
+  roundNumber   Int
+  status        String    @default("UPCOMING") // UPCOMING | BETTING_OPEN | BETTING_CLOSED | RESULT_PROCESSING | SETTLED | CLOSED
+  bettingEndsAt DateTime?
+  resultData    String?   // JSON string
+  winnerId      String?   // winning option ID
+  totalBetAmount Float    @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  settledAt     DateTime?
+
+  game          Game      @relation(fields: [gameId], references: [id])
+  bets          GameBet[]
+  result        GameResult?
+  settlements   GameSettlement[]
+
+  @@map("game_rounds")
+}
+
+model GameBet {
+  id             String   @id @default(uuid())
+  roundId        String
+  playerId       String
+  optionId       String
+  amount         Float
+  idempotencyKey String   @unique
+  txRef          String?  // wallet transaction reference
+  status         String   @default("PENDING") // PENDING | WON | LOST | REFUNDED
+  payout         Float?
+  createdAt      DateTime @default(now())
+  settledAt      DateTime?
+
+  round          GameRound  @relation(fields: [roundId], references: [id])
+  player         Player     @relation(fields: [playerId], references: [id])
+  option         GameOption @relation(fields: [optionId], references: [id])
+  settlement     GameSettlement?
+
+  @@map("game_bets")
+}
+
+model GameResult {
+  id           String   @id @default(uuid())
+  roundId      String   @unique
+  winningOption String  // option label or identifier
+  resultData   String   @default("{}") // JSON: card values, reel positions, etc
+  processedAt  DateTime @default(now())
+  processedBy  String   @default("system") // system | admin
+
+  round        GameRound @relation(fields: [roundId], references: [id])
+
+  @@map("game_results")
+}
+
+model GameSettlement {
+  id          String   @id @default(uuid())
+  roundId     String
+  betId       String   @unique
+  playerId    String
+  payout      Float
+  status      String   @default("PENDING") // PENDING | COMPLETED | FAILED
+  txRef       String?
+  settledAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  round       GameRound @relation(fields: [roundId], references: [id])
+  bet         GameBet   @relation(fields: [betId], references: [id])
+
+  @@map("game_settlements")
+}
+
+model TokenPackage {
+  id          String   @id @default(uuid())
+  name        String
+  priceUsd    Float
+  baseTokens  Int
+  bonusTokens Int      @default(0)
+  isSpecialOffer Boolean @default(false)
+  isPopular   Boolean  @default(false)
+  expiryDays  Int      @default(30)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("token_packages")
+}
+
+model ProfitRiskConfig {
+  id               String   @id @default(uuid())
+  baseHouseEdge    Float    @default(8.0)
+  vipAdjustment    Float    @default(1.5)
+  maxPayoutPerRound Float   @default(10000)
+  jackpotWeight    Float    @default(1.0)
+  maxDailyLossPerPlayer Float @default(500)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("profit_risk_configs")
+}
+
+model PlayerOverride {
+  id            String   @id @default(uuid())
+  playerId      String   @unique
+  houseEdge     Float?
+  customLossLimit Float?
+  tokenBalance  Float?
+  notes         String?
+  appliedBy     String   // admin ID
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("player_overrides")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?  // player or admin ID
+  actorType  String   @default("system") // player | admin | system
+  action     String   // BET_PLACED | ROUND_SETTLED | ADMIN_OVERRIDE | etc.
+  entityType String   // bet | round | player | config | token_package
+  entityId   String?
+  before     String?  // JSON snapshot before
+  after      String?  // JSON snapshot after
+  ipAddress  String?
+  requestId  String?
+  createdAt  DateTime @default(now())
+
+  player     Player?  @relation(fields: [actorId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model DesignToken {
+  id          String   @id @default(uuid())
+  scope       String   // global | page:games | page:admin | game:greedy | etc.
+  key         String   // e.g. primaryColor, bgGradient, cardBg
+  value       String   // hex / gradient / css string
+  label       String?
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([scope, key])
+  @@map("design_tokens")
+}
+
+model GameBranding {
+  id          String   @id @default(uuid())
+  gameSlug    String   @unique
+  displayName String?
+  logoUrl     String?
+  iconEmoji   String?
+  primaryColor  String?
+  accentColor   String?
+  bgGradient    String?
+  tagline     String?
+  isVisible   Boolean  @default(true)
+  updatedBy   String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("game_branding")
+}
+
+model FeatureFlag {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  label       String
+  description String?
+  enabled     Boolean  @default(true)
+  allowedRoles String  @default("player,admin,super_admin") // comma-separated
+  updatedBy   String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("feature_flags")
+}
+
+// ─── Game Denomination Config ─────────────────────────────────────────────────
+// Stores configurable bet denominations per game as a JSON array of numbers.
+model GameDenominationConfig {
+  id           String   @id @default(uuid())
+  gameId       String   @unique
+  denominations String  @default("[1000,5000,50000,100000]") // JSON array
+  minBet        Float   @default(100)
+  maxBet        Float   @default(1000000)
+  updatedBy     String?
+  updatedAt     DateTime @updatedAt
+
+  game         Game     @relation(fields: [gameId], references: [id])
+
+  @@map("game_denomination_configs")
+}
+
+// ─── Game Package (Food Wheel package betting) ────────────────────────────────
+model GamePackage {
+  id          String   @id @default(uuid())
+  gameId      String
+  name        String
+  optionLabels String  // JSON array of option labels to bet on
+  price       Float
+  multiplier  Float
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  game        Game     @relation(fields: [gameId], references: [id])
+
+  @@map("game_packages")
+}
+
+// ─── Video Call Access ────────────────────────────────────────────────────────
+// Superadmin grants/revokes video call capability to specific admin accounts.
+model VideoCallAccess {
+  id          String   @id @default(uuid())
+  playerId    String   @unique
+  grantedBy   String   // super_admin player ID
+  channelName String   @default("admin-broadcast") // Agora channel
+  role        String   @default("host") // host | audience
+  isActive    Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  player      Player   @relation(fields: [playerId], references: [id])
+
+  @@map("video_call_access")
+}
+
+// ─── Payment Order ────────────────────────────────────────────────────────────
+model PaymentOrder {
+  id              String   @id @default(uuid())
+  playerId        String
+  packageId       String?
+  provider        String   // stripe | revenuecat | manual
+  externalOrderId String?  // Stripe payment_intent ID or RevenueCat transaction ID
+  currency        String   @default("USD")
+  amountCents     Int      // real-money amount in cents
+  tokenAmount     Int      // tokens to credit on success
+  status          String   @default("pending") // pending | completed | failed | refunded
+  receiptData     String?  // raw receipt/webhook payload JSON
+  metadata        String   @default("{}") // JSON for extra provider data
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  player          Player   @relation(fields: [playerId], references: [id])
+
+  @@map("payment_orders")
+}
+
+// ─── Payment Gateway Config ───────────────────────────────────────────────────
+// Superadmin-managed gateway settings (keys stored masked; actual secrets in env).
+model PaymentGatewayConfig {
+  id              String   @id @default(uuid())
+  provider        String   @unique // stripe | revenuecat | manual
+  isEnabled       Boolean  @default(false)
+  webhookSecret   String?  // hashed/masked — real value in env
+  publicKey       String?  // safe-to-store publishable key
+  webhookUrl      String?  // configured at provider dashboard
+  metadata        String   @default("{}") // provider-specific config JSON
+  updatedBy       String?
+  updatedAt       DateTime @updatedAt
+
+  @@map("payment_gateway_configs")
+}
+
+// ─── Service Health Snapshot ──────────────────────────────────────────────────
+model ServiceHealthSnapshot {
+  id              String   @id @default(uuid())
+  uptimeSeconds   Int
+  dbPingMs        Int
+  memUsedMb       Float
+  memTotalMb      Float
+  nodeVersion     String
+  environment     String
+  pendingMigrations Int   @default(0)
+  recordedAt      DateTime @default(now())
+
+  @@map("service_health_snapshots")
+}
+
+// ─── Admin Permissions (SaaS Model) ──────────────────────────────────────────
+// Superadmin grants granular permissions to admin accounts.
+// Each admin can have per-game access, settings modification, feature flags, etc.
+
+model AdminPermission {
+  id            String   @id @default(uuid())
+  adminId       String   // Player ID of the admin
+  permission    String   // e.g. "game:greedy:manage", "settings:platform:edit", "features:manage"
+  scope         String   // "game" | "settings" | "features" | "players" | "reports" | "payments" | "support"
+  grantedBy     String   // super_admin player ID
+  isActive      Boolean  @default(true)
+  expiresAt     DateTime? // optional expiry
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  admin         Player   @relation(fields: [adminId], references: [id])
+
+  @@unique([adminId, permission])
+  @@map("admin_permissions")
+}
+
+// ─── Support Tickets ──────────────────────────────────────────────────────────
+model SupportTicket {
+  id            String   @id @default(uuid())
+  playerId      String
+  subject       String
+  description   String
+  category      String   @default("general") // general | payment | game_issue | account | technical
+  priority      String   @default("medium")  // low | medium | high | urgent
+  status        String   @default("open")    // open | in_progress | resolved | closed
+  assignedTo    String?  // admin player ID
+  assignedAt    DateTime?
+  resolvedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  player        Player   @relation(fields: [playerId], references: [id])
+  messages      SupportMessage[]
+
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id            String   @id @default(uuid())
+  ticketId      String
+  senderId      String   // player or admin ID
+  senderType    String   @default("player") // player | admin | system
+  message       String
+  isInternal    Boolean  @default(false) // internal admin notes not visible to player
+  createdAt     DateTime @default(now())
+
+  ticket        SupportTicket @relation(fields: [ticketId], references: [id])
+
+  @@map("support_messages")
+}
+
+// ─── Platform Settings ────────────────────────────────────────────────────────
+model PlatformSetting {
+  id            String   @id @default(uuid())
+  key           String   @unique
+  value         String   // JSON string
+  category      String   @default("general") // general | security | notifications | appearance | game_defaults
+  description   String?
+  updatedBy     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("platform_settings")
+}
